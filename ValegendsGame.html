@@ -203,6 +203,19 @@
     will-change:transform;transform-origin:50% 76%}
   body.walkmode #world{display:block}
 
+  /* ---- occluders: clipped copies of the scene that sprites pass BEHIND ---- */
+  .occ{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    pointer-events:none}
+  /* ---- per-scene light applied to every sprite so they sit in the scene ---- */
+  #world{--sprlight:none}
+  .sprite img.pspr,.sprite>svg{filter:var(--sprlight)}
+  /* ---- footstep dust ---- */
+  .dust{position:absolute;width:10px;height:6px;border-radius:50%;
+    background:rgba(210,190,150,.5);pointer-events:none;
+    animation:dustPuff .5s ease-out forwards}
+  @keyframes dustPuff{from{transform:translate(-50%,-50%) scale(.5);opacity:.55}
+    to{transform:translate(-50%,-140%) scale(1.6);opacity:0}}
+
   /* ---- atmosphere particles + mist (immersion layer) ---- */
   .pt{position:absolute;pointer-events:none;border-radius:50%;
     animation:ptFloat var(--dur) linear infinite}
@@ -233,8 +246,9 @@
   .sprite{position:absolute;transform-origin:50% 100%;pointer-events:none;
     filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
   .sprite svg{display:block;width:100%;height:100%}
-  .sprite .shadow{position:absolute;left:12%;right:12%;bottom:-2%;height:12%;
-    background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.42),transparent 70%);border-radius:50%}
+  .sprite .shadow{position:absolute;left:-6%;right:-6%;bottom:-3.5%;height:16%;
+    background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.5),transparent 68%);
+    border-radius:50%;filter:blur(2px)}
   .sprite img.pspr{width:100%;height:100%;object-fit:contain;display:block;
     transform-origin:50% 100%}
   .sprite.walking img.pspr{animation:sway .38s ease-in-out infinite alternate}
@@ -1258,8 +1272,32 @@ function updateCamera(dt){
   const ty=Math.max(-5,Math.min(5,(S.py-74)*.22));
   const k=Math.min(1,dt*4.5);
   E2.cam.x+=(tx-E2.cam.x)*k; E2.cam.y+=(ty-E2.cam.y)*k;
-  const tr=`scale(${CAMZ}) translate(${-E2.cam.x}%,${-E2.cam.y}%)`;
+  E2.kick=E2.kick||1; E2.kick+=(1-E2.kick)*Math.min(1,dt*2.2);   // arrival zoom settle
+  const tr=`scale(${(CAMZ*E2.kick).toFixed(4)}) translate(${-E2.cam.x}%,${-E2.cam.y}%)`;
   scene.style.transform=tr; $('world').style.transform=tr;
+}
+
+/* ---------- footsteps: dust puffs + soft step sounds ---------- */
+const OUTDOOR=['square','gate','market','cemetery','forest','clearing','lake',
+  'waterfall','mine','bridge','trail','vantage','volcano','ruin'];
+function footstep(){
+  if(OUTDOOR.includes(S.loc)){
+    const d=document.createElement('div'); d.className='dust';
+    d.style.left=(S.px+(Math.random()*2-1))+'%'; d.style.top=(S.py+.5)+'%';
+    d.style.zIndex=Math.round(S.py*10)-1;
+    $('world').appendChild(d); setTimeout(()=>d.remove(),520);
+  }
+  if(AUDIO.ctx&&AUDIO.on){
+    const C=AUDIO.ctx,t=C.currentTime;
+    const src=C.createBufferSource(); src.buffer=AUDIO.noise;
+    src.playbackRate.value=.4+Math.random()*.3;
+    const f=C.createBiquadFilter(); f.type='bandpass';
+    f.frequency.value=300+Math.random()*250; f.Q.value=1.5;
+    const g=C.createGain(); g.gain.setValueAtTime(.05,t);
+    g.gain.exponentialRampToValueAtTime(.001,t+.09);
+    src.connect(f);f.connect(g);g.connect(AUDIO.ambG);
+    src.start(t); src.stop(t+.1);
+  }
 }
 
 /* ---------- atmosphere particles per biome ---------- */
@@ -1303,10 +1341,57 @@ function fxMist(w){
 }
 function buildFX(w){
   const biome=S.loc; const cfg=FX[biome];
-  if(cfg) for(let i=0;i<cfg.n;i++) w.appendChild(cfg.mk(i));
+  if(cfg) for(let i=0;i<cfg.n;i++){
+    const el=cfg.mk(i);
+    el.style.zIndex=Math.random()<.45?1180:260;   // some drift IN FRONT of you
+    w.appendChild(el);
+  }
   if(['lake','waterfall','cemetery','ruin','cave','portal','forest','vantage'].includes(biome))
-    for(let i=0;i<3;i++) w.appendChild(fxMist(30+Math.random()*25));
+    for(let i=0;i<3;i++){const m=fxMist(30+Math.random()*25);
+      m.style.zIndex=Math.random()<.5?1170:250; w.appendChild(m);}
 }
+
+/* ---------- occluders: foreground pieces of the scene you walk BEHIND.
+     Each is a clip-path copy of the background image with a baseline:
+     stand below the baseline and you're in front, above it and the
+     object covers you. Oversized polygons are invisible because the
+     copy is pixel-identical to the background. ---------- */
+const OCC={
+  square:[{poly:[[35,49],[65,49],[67,85],[33,85]],base:82}],
+  forest:[{poly:[[72,16],[100,16],[100,98],[72,98]],base:95},
+          {poly:[[0,74],[18,72],[22,100],[0,100]],base:99}],
+  clearing:[{poly:[[38,53],[64,53],[66,85],[36,85]],base:83}],
+  lake:[{poly:[[0,78],[26,80],[28,100],[0,100]],base:99}],
+  cave:[{poly:[[68,26],[100,26],[100,100],[68,100]],base:97}],
+  market:[{poly:[[66,38],[100,38],[100,96],[66,96]],base:92}],
+  gate:[{poly:[[68,48],[97,48],[97,90],[68,90]],base:87}],
+  cemetery:[{poly:[[6,56],[32,56],[32,86],[6,86]],base:83},
+            {poly:[[58,58],[87,58],[87,90],[58,90]],base:87}],
+  volcano:[{poly:[[0,86],[100,88],[100,100],[0,100]],base:100}],
+  waterfall:[{poly:[[0,80],[30,82],[32,100],[0,100]],base:99}],
+};
+function buildOccluders(w){
+  const L=WORLD[S.loc];
+  if(!L.img) return;
+  (OCC[S.loc]||[]).forEach(o=>{
+    const img=document.createElement('img');
+    img.className='occ'; img.src=A(L.img);
+    img.style.clipPath='polygon('+o.poly.map(p=>p[0]+'% '+p[1]+'%').join(',')+')';
+    img.style.zIndex=Math.round(o.base*10);
+    w.appendChild(img);
+  });
+}
+
+/* per-scene light cast onto sprites so they match the painting */
+const LIGHT={
+  cave:'brightness(.7) saturate(.85)', mine:'brightness(.74) sepia(.15)',
+  portal:'brightness(.8) saturate(.9)', clearing:'brightness(.82)',
+  temple:'brightness(.85)', cemetery:'brightness(.88) saturate(.85)',
+  volcano:'brightness(.92) sepia(.3) saturate(1.25)',
+  ruin:'brightness(.86) saturate(.9)', library:'brightness(.85) sepia(.12)',
+  smithy:'brightness(.85) sepia(.2)', inn:'brightness(.9) sepia(.1)',
+  hall:'brightness(.9) sepia(.08)',
+};
 
 /* ---------- combat data ---------- */
 const ETYPES={
@@ -1342,6 +1427,8 @@ function buildWorld(){
   if(E2.builtLoc===S.loc && E2.player && E2.player.isConnected) return; // same scene: keep sprites live
   E2.builtLoc=S.loc;
   const w=$('world'); w.innerHTML=''; E2.npcs=[]; E2.items=[]; E2.enemies=[];
+  buildOccluders(w);
+  w.style.setProperty('--sprlight', LIGHT[S.loc]||'none');
   buildFX(w);
   // enemies for this area
   (ESPAWN[S.loc]||[]).forEach(t=>{
@@ -1456,6 +1543,8 @@ function tick(t){
     S.py=Math.max(BAND.top,Math.min(BAND.bot+2,S.py+dy*PSPEED.y*dt));
     if(E2.pset) setPose(dx,dy); else if(dx)S.pf=dx>0?1:-1;
     E2.player.classList.add('walking');
+    E2.stepT=(E2.stepT||0)-dt;
+    if(E2.stepT<=0){ E2.stepT=.34; footstep(); }
     // ---- edge exits ----
     const L=WORLD[S.loc];
     if(S.px<=0.5&&L.links.w) return transition('w');
@@ -1609,6 +1698,7 @@ function transition(dir){
     S.loc=to; spend(cost);
     if(S.hero.id==='monk')S.sta=Math.min(S.maxsta,S.sta+3);
     AUDIO.setLocation(to);   // swap ambient sound layers for the new area
+    E2.kick=1.06;            // small zoom settle on arrival
     // enter from the opposite edge
     if(dir==='w')S.px=97; else if(dir==='e')S.px=3;
     else if(dir==='n'){S.py=BAND.bot;S.px=Math.max(4,Math.min(96,S.px));}
