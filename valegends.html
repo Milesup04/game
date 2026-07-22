@@ -143,6 +143,58 @@
     max-width:30%;text-shadow:0 1px 2px #000}
   .quest b{color:var(--gold-bright)}
   .dead{color:#ff8a8a}
+
+  /* ---------- IMAGE MODE: your painted panels are the whole scene.
+     The baked-in HUD is part of the art; the live game UI lives in a
+     single bottom bar so nothing doubles up. ---------- */
+  body.imgmode #bars,body.imgmode #compass,body.imgmode #prompt,
+  body.imgmode #label,body.imgmode .hint,body.imgmode .quest,
+  body.imgmode #travel,body.imgmode #actions{display:none!important}
+  #hud{display:none}
+  body.imgmode #hud{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:25;
+    align-items:center;gap:.8vw;padding:1vh 1.1vw 1.1vh;flex-wrap:wrap;
+    background:linear-gradient(180deg,rgba(8,10,16,0) 0%,rgba(8,10,16,.72) 38%,rgba(6,8,12,.96) 100%)}
+  .hud-bars{flex:0 0 auto;width:19%;min-width:140px}
+  .hud-row{display:flex;align-items:center;gap:.5vw;margin-bottom:.5vh}
+  .hud-row .ic{width:1.8vw;height:1.8vw;max-width:24px;max-height:24px;min-width:15px;flex:0 0 auto}
+  .hbar{position:relative;flex:1;height:1.4vw;max-height:18px;min-height:11px;background:#140d05;
+    border:2px solid #000;border-radius:4px;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.12) inset}
+  .hbar .f{position:absolute;inset:0;transform-origin:left;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+  .hbar.hp .f{background:linear-gradient(#ff6b6f,#e5484d 55%,#b3282c)}
+  .hbar.sta .f{background:linear-gradient(#8fd0ff,#3aa0e0 55%,#1f76b8)}
+  .hbar .t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:.72vw;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;min-font-size:9px}
+  .hud-travel{flex:0 0 auto;display:flex;gap:.4vw;flex-wrap:wrap;max-width:26%}
+  .navb{background:linear-gradient(#3b3630,#242019);color:#f0e6cf;border:2px solid #000;border-radius:6px;
+    padding:.5vh .7vw;font-size:.82vw;font-weight:700;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.5);white-space:nowrap}
+  .navb:hover{filter:brightness(1.2)}.navb:active{transform:translateY(1px)}
+  .navb .d{color:var(--gold);font-weight:800;margin-right:.3em}
+  .hud-mid{flex:1 1 120px;text-align:center;min-width:0;order:0}
+  .hud-loc{font-size:1.05vw;font-weight:800;color:var(--gold-bright);text-shadow:0 2px 4px #000;letter-spacing:.4px}
+  .hud-sub{font-size:.78vw;color:#e8e0cf;opacity:.9;text-shadow:0 1px 2px #000;margin-top:.2vh}
+  .hud-sub b{color:var(--gold-bright)}
+  .hud-act{flex:1 1 auto;display:flex;gap:.45vw;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+  .actb{background:linear-gradient(#4a3f22,#2f2712);color:var(--gold-bright);border:2px solid #000;
+    border-radius:6px;padding:.5vh .7vw;font-size:.82vw;font-weight:800;cursor:pointer;
+    box-shadow:0 2px 4px rgba(0,0,0,.5);white-space:nowrap}
+  .actb:hover{filter:brightness(1.2)}.actb:active{transform:translateY(1px)}
+  .actb.key{color:#fff}.actb .k{color:var(--gold-bright)}
+  .actb.hot{border-color:var(--gold);box-shadow:0 0 10px rgba(232,193,90,.5)}
+  #vign{position:absolute;inset:0;z-index:18;pointer-events:none;opacity:0;transition:opacity .5s;
+    box-shadow:inset 0 0 22vw 4vw rgba(180,20,20,.65)}
+  body.hurt #vign{opacity:1}
+  .qbadge{position:absolute;left:1.4%;top:3.5%;z-index:24;background:rgba(10,12,18,.72);
+    border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:.6vh .9vw;max-width:30%;
+    font-size:.8vw;color:#f0e6cf;text-shadow:0 1px 2px #000;box-shadow:0 3px 10px rgba(0,0,0,.5);display:none}
+  body.imgmode .qbadge.show{display:block}
+  .qbadge b{color:var(--gold-bright)}
+  .qbadge .done{color:#7fe07a}
+  @media (max-width:640px){
+    .hud-loc{font-size:13px}.hud-sub,.navb,.actb,.hbar .t{font-size:10px}.qbadge{font-size:10px}
+    #prompt{font-size:14px}.tbtn,.abtn{font-size:11px}.card h1{font-size:22px}
+    .hero .nm{font-size:11px}.hero .cl,.hero .sk{font-size:10px}.kv,.sub,.card h2{font-size:13px}
+    .cdir{font-size:9px}#label{font-size:12px}
+  }
   @media (max-width:640px){
     #prompt{font-size:14px}.tbtn,.abtn{font-size:11px}.card h1{font-size:22px}
     .hero .nm{font-size:11px}.hero .cl,.hero .sk{font-size:10px}.kv,.sub,.card h2{font-size:13px}
@@ -185,6 +237,30 @@
       <button class="abtn" id="eBtn">E</button>
     </div>
 
+    <!-- quest badge (image mode) -->
+    <div class="qbadge" id="qbadge"></div>
+
+    <!-- live bottom HUD (image mode) -->
+    <div id="hud">
+      <div class="hud-bars">
+        <div class="hud-row">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.2 8 2 4.5 5.3 4.5c2 0 3.3 1.2 4.2 2.6C10.4 5.7 11.7 4.5 13.7 4.5 17 4.5 18.8 8 16 11.7 13.5 16.4 12 21 12 21z" fill="#e5484d" stroke="#7a1417" stroke-width="1.2"/></svg>
+          <div class="hbar hp"><div class="f" id="hpf2"></div><div class="t" id="hpt"></div></div>
+        </div>
+        <div class="hud-row">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-13h-6l1-7z" fill="#ffd23a" stroke="#8a6a10" stroke-width="1.1"/></svg>
+          <div class="hbar sta"><div class="f" id="staf2"></div><div class="t" id="stat"></div></div>
+        </div>
+      </div>
+      <div class="hud-travel" id="hudTravel"></div>
+      <div class="hud-mid">
+        <div class="hud-loc" id="hudLoc"></div>
+        <div class="hud-sub" id="hudSub"></div>
+      </div>
+      <div class="hud-act" id="hudAct"></div>
+    </div>
+
+    <div id="vign"></div>
     <div class="fade" id="fade"></div>
 
     <!-- hero select -->
@@ -245,6 +321,8 @@ const HEROES = [
     hp:100, sta:110, portrait:null,
     skill:'Death Speaker: the Cemetery restores health instead of nothing.'},
 ];
+// Real painted portraits sliced from the character sheet (drop-in image slots).
+HEROES.forEach(h=>{ h.portrait = `assets/heroes/${h.id}.jpg`; });
 
 /* =====================================================================
    2) ITEMS  — food restores; resources complete the quest.
@@ -256,6 +334,7 @@ const ITEMS = {
   bread:{name:'Bread', food:20, sta:12},
   iron:{name:'Iron Ore'}, sulfur:{name:'Sunstone'}, page:{name:'Chronicle Page'},
   crystal:{name:'Glow Crystal', food:0, sta:24},
+  potion:{name:'Healing Potion', food:55, sta:15},
 };
 
 /* =====================================================================
@@ -313,6 +392,15 @@ const WORLD = {
   portal:{name:'Portal Ruin', biome:'portal', prompt:'to Activate Portal', act:'portal',
     links:{n:'library'}, mx:98, my:80, img:null},
 };
+// Real painted backgrounds sliced from the location sheets (drop-in image slots).
+// Each value is a file in assets/scenes/. Comment a line out to fall back to the drawn SVG.
+const SCENE_IMG = {
+  square:'square', hall:'hall', inn:'inn', temple:'temple', market:'market', smithy:'smithy',
+  gate:'gate', cemetery:'cemetery', forest:'forest', clearing:'clearing', lake:'lake',
+  waterfall:'waterfall', cave:'cave', mine:'mine', bridge:'bridge', trail:'mountain',
+  vantage:'vantage', volcano:'volcano', ruin:'ruin', library:'library', portal:'portal',
+};
+for(const k in SCENE_IMG){ if(WORLD[k]) WORLD[k].img = `assets/scenes/${SCENE_IMG[k]}.jpg`; }
 
 /* =====================================================================
    4) STATE
@@ -326,10 +414,13 @@ function newGame(heroId){
   S = {
     hero:h, maxhp:h.hp, hp:h.hp, maxsta:h.sta, sta:h.sta,
     loc:'square', gold:20, bag:{berries:2, bread:1},
-    quest:0, // 0 not started, 1 gathering, 2 ready, 3 done
-    have:{iron:false, sulfur:false, page:false},
+    quest:0,                 // main quest stage: 0 not started .. 3 done
+    quests:{},               // side-quest states: npcId -> 'active' | 'done'
+    buff:{},                 // permanent perks earned from quests
+    flags:{},                // misc one-time flags
     dead:false, ruinOpen:false,
   };
+  document.body.classList.add('imgmode');   // painted panels are the scene
   $('pick').classList.remove('on');
   render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}`, 3600);
 }
@@ -670,6 +761,48 @@ function render(){
   // quest tracker
   drawQuest();
   $('eBtn').classList.toggle('hidden', !canAct);
+  // live bottom HUD (image mode)
+  populateHud(L, canAct);
+  drawQBadge();
+}
+
+/* live bottom bar: bars, travel, location, context actions incl. NPCs */
+function populateHud(L, canAct){
+  $('hpf2').style.transform = `scaleX(${Math.max(0,S.hp/S.maxhp)})`;
+  $('staf2').style.transform= `scaleX(${Math.max(0,S.sta/S.maxsta)})`;
+  $('hpt').textContent = `${Math.max(0,Math.round(S.hp))}/${S.maxhp}`;
+  $('stat').textContent= `${Math.max(0,Math.round(S.sta))}/${S.maxsta}`;
+  document.body.classList.toggle('hurt', S.hp>0 && S.hp/S.maxhp<0.25);
+  $('hudLoc').textContent = L.name;
+  $('hudSub').innerHTML = `Gold <b>${S.gold}</b>`;
+  // travel
+  $('hudTravel').innerHTML = Object.entries(L.links).map(([d,to])=>
+    `<button class="navb" onclick="go('${d}')"><span class="d">${d.toUpperCase()}</span>${WORLD[to].name}</button>`).join('');
+  // actions: primary [E], NPCs, eat, hero
+  let acts='';
+  if(canAct){ const label=L.prompt.replace(/^to /,''); acts+=`<button class="actb key" onclick="doAction()"><span class="k">[E]</span> ${label}</button>`; }
+  npcsAt(S.loc).forEach(([id,n])=>{
+    const st=S.quests[id]; const glow = (!st||(st==='active'&&questMet(n)))?' hot':'';
+    const tag = st==='done'?' (done)':(st==='active'?(questMet(n)?' (ready!)':' ...'):' !');
+    acts+=`<button class="actb${glow}" onclick="talkNPC('${id}')">Talk: ${n.name}${tag}</button>`;
+  });
+  acts+=`<button class="actb" onclick="eat()">[F] Eat</button>`;
+  acts+=`<button class="actb" onclick="heroInfo()">[I] Hero</button>`;
+  $('hudAct').innerHTML=acts;
+}
+
+/* quest badge top-left: main quest + active side quests */
+function drawQBadge(){
+  const b=$('qbadge'); let h='';
+  if(S.quest>=1 && S.quest<3){
+    const t=i=>has(i)?`<span class="done">✓</span>`:'○';
+    h+=`<div><b>Rekindle the Sunwell</b><br>${t('iron')} Iron · ${t('sulfur')} Sunstone · ${t('page')} Page`+
+       (allGathered()?`<br>→ Activate the <b>Portal Ruin</b>`:``)+`</div>`;
+  } else if(S.quest>=3){ h+=`<div class="done"><b>✓ The Sunwell is rekindled</b></div>`; }
+  const active=Object.entries(S.quests).filter(([id,st])=>st==='active');
+  if(active.length){ h+=`<div style="margin-top:.4vh">`+active.map(([id])=>
+      `${questMet(NPCS[id])?'<span class="done">✓</span>':'○'} ${NPCS[id].title}`).join('<br>')+`</div>`; }
+  b.innerHTML=h; b.classList.toggle('show', !!h);
 }
 
 function drawCompass(){
@@ -687,13 +820,13 @@ function drawCompass(){
 function drawQuest(){
   const q=$('quest'); if(S.quest===0){q.innerHTML='';return;}
   if(S.quest>=3){q.innerHTML=`<b>Quest complete.</b> The Sunwell is rekindled.`;return;}
-  const t = i => (S.have[i]?'✓':'○');
+  const t = i => (has(i)?'✓':'○');
   q.innerHTML=`<b>Rekindle the Sunwell</b><br>
     ${t('iron')} Iron Ore &nbsp; ${t('sulfur')} Sunstone<br>
     ${t('page')} Chronicle Page<br>
     ${allGathered()?'→ Activate the <b>Portal Ruin</b>':'Gather all three.'}`;
 }
-function allGathered(){return S.have.iron&&S.have.sulfur&&S.have.page;}
+function allGathered(){return has('iron')&&has('sulfur')&&has('page');}
 
 /* =====================================================================
    8) MOVEMENT + TICK
@@ -703,6 +836,7 @@ function go(dir){
   const L=WORLD[S.loc]; const to=L.links[dir]; if(!to) return;
   let cost = 12;
   if(S.hero.id==='bard') cost=6;
+  if(S.buff.boots) cost=Math.max(3,cost-5);
   // fade transition
   const f=$('fade'); f.classList.add('on');
   setTimeout(()=>{
@@ -731,6 +865,97 @@ function checkDeath(){
 }
 
 /* =====================================================================
+   8b) NPCs & QUESTS  — each NPC lives at a location, offers a quest,
+       and pays a real reward. Add or edit freely; it's all data.
+   ===================================================================== */
+const NPCS = {
+  innkeeper:{name:'Innkeeper', loc:'inn', title:'Empty Pot',
+    offer:"The stew pot's gone cold and travelers are grumbling. Bring me <b>3 Berries</b> from the forest and I'll cook you a feast.",
+    need:{berries:3}, reminder:"Still need <b>3 Berries</b> for the pot — the forest bushes are thick with them.",
+    rewardText:"You get <b>2 Hearty Stew</b> and <b>10 gold</b>!",
+    reward(){ take('berries',3); give('stew',2); S.gold+=10; },
+    done:"That stew's the best in the valley now. Thank you, friend." },
+  smith:{name:'Blacksmith', loc:'smithy', title:'Sharper Tools',
+    offer:"My tools are worn to nubs. Fetch me <b>1 Iron Ore</b> from the mine and I'll forge you boots that never tire.",
+    need:{iron:1}, reminder:"Bring me <b>1 Iron Ore</b> — the mine's just east of the forest.",
+    rewardText:"You receive <b>Sturdy Boots</b> (travel costs less stamina) and <b>12 gold</b>!",
+    reward(){ take('iron',1); S.buff.boots=true; S.gold+=12; },
+    done:"Those boots treating you well? Safe travels." },
+  alchemist:{name:'Alchemist', loc:'market', title:'Glow in the Dark',
+    offer:"I'm brewing a new tonic but I'm out of reagent. Bring me <b>1 Glow Crystal</b> from the cave by the lake.",
+    need:{crystal:1}, reminder:"I still need <b>1 Glow Crystal</b> — try the Glow Cave west of the lake.",
+    rewardText:"You receive <b>2 Healing Potions</b> and <b>8 gold</b>!",
+    reward(){ take('crystal',1); give('potion',2); S.gold+=8; },
+    done:"The tonic sold out in a day. Come back anytime." },
+  fisher:{name:'Old Angler', loc:'lake', title:'The Glimmerfin',
+    offer:"These waters hide a shimmering fish. Catch me <b>2 Smoked Fish</b> and I'll teach you my secret.",
+    need:{fish:2}, reminder:"Land me <b>2 Smoked Fish</b> — cast off the dock here.",
+    rewardText:"You learn <b>Angler's Luck</b> (fishing yields double) and <b>15 gold</b>!",
+    reward(){ take('fish',2); S.buff.angler=true; S.gold+=15; },
+    done:"May your line always be tight." },
+  gravekeeper:{name:'Gravekeeper', loc:'cemetery', title:'Rest in Peace',
+    offer:"An old hero lies here, unmourned. Simply <b>pay your respects</b> at the grave, and I'll give you what he left behind.",
+    need:{flag:'paidRespects'}, reminder:"Press the grave action here to <b>pay respects</b> first.",
+    rewardText:"You receive the <b>Old Amulet</b> — your maximum health rises by 20!",
+    reward(){ S.maxhp+=20; S.hp+=20; },
+    done:"He rests easier now. So should you." },
+  scholar:{name:'Scholar', loc:'library', title:'The Lost Rite',
+    offer:"The rite to wake the Sunwell is written on a <b>Chronicle Page</b> in these stacks. Read it and bring word back to me.",
+    need:{item:'page'}, reminder:"Find and <b>read the Chronicle</b> here to copy the page.",
+    rewardText:"You receive <b>20 gold</b>, and the Scholar marks the Portal Ruin on your map.",
+    reward(){ S.gold+=20; S.flags.portalKnown=true; },
+    done:"The rite is yours. Only the portal remains." },
+  hunter:{name:'Forester', loc:'forest', title:'Winter Stores',
+    offer:"Winter's coming and the village larder is bare. Gather <b>4 Berries</b> for the stores.",
+    need:{berries:4}, reminder:"Gather <b>4 Berries</b> from these bushes for the larder.",
+    rewardText:"You receive <b>2 Bread</b> and <b>10 gold</b>!",
+    reward(){ take('berries',4); give('bread',2); S.gold+=10; },
+    done:"The larder's full. The village will make it through." },
+};
+function npcsAt(loc){ return Object.entries(NPCS).filter(([id,n])=>n.loc===loc); }
+function questMet(n){
+  if(n.need.flag) return !!S.flags[n.need.flag];
+  if(n.need.item) return (S.bag[n.need.item]||0)>0;
+  if(n.need.items){} // (unused shorthand)
+  return Object.entries(n.need).filter(([k])=>!['flag','item','items'].includes(k))
+    .every(([k,v])=>(S.bag[k]||0)>=v);
+}
+function heroFace(){
+  const h=S.hero;
+  return h.portrait
+    ? `<img src="${h.portrait}" style="width:100%;border-radius:10px;object-fit:cover;object-position:50% 20%;max-height:34vh">`
+    : heroSVG(h,true);
+}
+function talkNPC(id){
+  const n=NPCS[id]; const st=S.quests[id];
+  const face=`<div style="flex:0 0 26%">${heroFace()}</div>`;
+  if(!st){
+    openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name} — “${n.title}”</h2>
+      <div class="kv" style="margin-top:.6vh">${n.offer}</div></div></div>
+      <div class="btnbar"><button class="big" onclick="acceptQuest('${id}')">Accept Quest</button>
+      <button class="big" onclick="closeInfo()">Not now</button></div>`);
+  } else if(st==='active'){
+    if(questMet(n)){
+      n.reward(); S.quests[id]='done';
+      openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name}</h2>
+        <div class="kv" style="margin-top:.6vh">Quest complete! ${n.rewardText}</div></div></div>
+        <div class="btnbar"><button class="big" onclick="closeInfo();render()">Wonderful</button></div>`);
+      toast(`Quest complete: <b>${n.title}</b>`,2200);
+    } else {
+      openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name}</h2>
+        <div class="kv" style="margin-top:.6vh">${n.reminder}</div></div></div>
+        <div class="btnbar"><button class="big" onclick="closeInfo()">On it</button></div>`);
+    }
+  } else {
+    openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name}</h2>
+      <div class="kv" style="margin-top:.6vh">${n.done}</div></div></div>
+      <div class="btnbar"><button class="big" onclick="closeInfo()">Farewell</button></div>`);
+  }
+}
+function acceptQuest(id){ S.quests[id]='active'; closeInfo();
+  toast(`New quest: <b>${NPCS[id].title}</b>`,2200); render(); }
+
+/* =====================================================================
    9) ACTIONS (what [E] does per location)
    ===================================================================== */
 function actionAvailable(L){
@@ -757,23 +982,24 @@ const ACTIONS = {
   shop(){ openShop(); },
   craft(){ let ok=true; if(S.hero.id!=='cleric'){ if(S.sta<10){toast('Too tired to craft.',1500);return;} S.sta-=10; }
     give('bread',1); toast('At the forge you craft supplies. <b>+1 Bread</b>.',1800); render(); },
-  grave(){ if(S.hero.id==='necromancer'){S.hp=Math.min(S.maxhp,S.hp+40);toast('The dead whisper to you. <b>+40 health</b>.',2000);render();}
+  grave(){ S.flags.paidRespects=true;
+    if(S.hero.id==='necromancer'){S.hp=Math.min(S.maxhp,S.hp+40);toast('The dead whisper to you. <b>+40 health</b>.',2000);render();}
     else toast('You pay your respects. The graves are quiet.',1800); },
   travel(){ toast('You pass through the gate into the wild valley.',1600); },
   forage(){ let n= S.hero.id==='druid'?2:1; give('berries',n);
     starve(); toast(`You gather <b>${n} Berries</b> from the bushes.`,1600); render(); },
   camp(){ S.sta=S.maxsta; S.hp=Math.min(S.maxhp,S.hp+20);
     toast('You build a shelter and rest by the fire. <b>Recovered.</b>',2000); render(); },
-  fish(){ if(S.sta<8){toast('Too tired to fish.',1500);return;} S.sta-=8; give('fish',1);
-    toast('A fish takes the line! <b>+1 Smoked Fish</b>.',1700); render(); },
+  fish(){ if(S.sta<8){toast('Too tired to fish.',1500);return;} S.sta-=8;
+    let n = S.buff.angler?2:1; give('fish',n);
+    toast(`A fish takes the line! <b>+${n} Smoked Fish</b>.`,1700); render(); },
   search(){ give('gold',6); toast('You search the cove and find <b>6 gold</b> in the shipwreck.',1900); render(); },
   glow(){ let n=S.hero.id==='artificer'?2:1; give('crystal',n);
     toast(`You harvest <b>${n} Glow Crystal</b> — it hums with energy.`,1800); render(); },
   mine(){ if(S.sta<14 && S.hero.id!=='barbarian'){toast('Too tired to mine.',1500);return;}
     if(S.hero.id!=='barbarian') S.sta-=14;
-    if(!S.have.iron){ S.have.iron=true; questGrab(); toast('You strike a rich vein — <b>Iron Ore</b> obtained!',2200); }
-    else { give('gold',4); toast('You mine some ore and sell scraps. <b>+4 gold</b>.',1700); }
-    if(S.hero.id==='artificer'){give('gold',2);} render(); },
+    let n = (S.hero.id==='barbarian'||S.hero.id==='artificer')?2:1; give('iron',n);
+    toast(`You strike a rich vein — <b>+${n} Iron Ore</b>!`,2000); render(); },
   cross(){ let dmg = S.hero.id==='spellblade'?0:8;
     if(dmg){S.hp-=dmg; toast(`The rope bridge sways — you slip. <b>-${dmg} health</b>.`,1900);}
     else toast('You dance across the bridge without a misstep.',1700);
@@ -783,19 +1009,18 @@ const ACTIONS = {
   look(){ toast('From the vantage point the whole valley spreads below — the Sunwell flickers faintly.',2600); },
   sulfur(){ if(S.sta<14 && S.hero.id!=='barbarian'){toast('The heat saps you — rest first.',1600);return;}
     if(S.hero.id!=='barbarian') S.sta-=14;
-    if(!S.have.sulfur){ S.have.sulfur=true; questGrab(); toast('You gather glowing <b>Sunstone</b> from the vents!',2200); }
-    else { give('gold',3); toast('You collect some sulfur. <b>+3 gold</b>.',1600); } render(); },
-  enterRuin(){ if(S.hero.id==='warlock'||S.hero.id==='assassin'||S.have.page){ S.ruinOpen=true;
+    let n = (S.hero.id==='barbarian'||S.hero.id==='artificer')?2:1; give('sulfur',n);
+    toast(`You gather glowing <b>+${n} Sunstone</b> from the vents!`,2000); render(); },
+  enterRuin(){ if(S.hero.id==='warlock'||S.hero.id==='assassin'||has('page')){ S.ruinOpen=true;
       toast('The ancient door yields. The ruin opens before you.',2000); render(); }
     else { openDialog('Sealed Door','Runes bind this door. Perhaps the <b>Library</b> beyond holds the way — or a Warlock could read these marks.'); S.ruinOpen=true; render(); } },
-  chronicle(){ if(!S.have.page){ S.have.page=true; questGrab();
+  chronicle(){ if(!has('page')){ give('page',1);
       toast('You copy a <b>Chronicle Page</b> — the rite to wake the Sunwell.',2400); }
     else toast('The shelves hold a thousand tomes, all long dead languages.',1900); render(); },
-  portal(){ if(!allGathered()){ openDialog('Portal Ruin','The portal is dormant. You still need: '+
-        [['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!S.have[x[0]]).map(x=>x[1]).join(', ')+'.'); return; }
-    S.quest=3; win(); },
+  portal(){ const miss=[['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!has(x[0])).map(x=>x[1]);
+    if(miss.length){ openDialog('Portal Ruin','The portal is dormant. You still need: '+miss.join(', ')+'.'); return; }
+    take('iron',1); take('sulfur',1); take('page',1); S.quest=3; win(); },
 };
-function questGrab(){ if(S.quest===1 && allGathered()) S.quest=2; }
 function doAction(){
   if(S.dead) return; const L=WORLD[S.loc];
   if(!actionAvailable(L)) return;
@@ -815,9 +1040,11 @@ function win(){
    10) INVENTORY / SHOP / DIALOG / INFO
    ===================================================================== */
 function give(k,n=1){ if(k==='gold'){S.gold+=n;return;} S.bag[k]=(S.bag[k]||0)+n; }
+function take(k,n=1){ S.bag[k]=(S.bag[k]||0)-n; if(S.bag[k]<=0) delete S.bag[k]; }
+function has(k,n=1){ return (S.bag[k]||0)>=n; }
 function eat(){
   if(S.dead) return;
-  const order=['stew','fish','bread','berries','crystal'];
+  const order=['potion','stew','fish','bread','berries','crystal'];
   const k=order.find(x=>S.bag[x]>0);
   if(!k){toast('Nothing to eat. Forage, fish or cook.',1600);return;}
   S.bag[k]--; if(S.bag[k]<=0) delete S.bag[k];
@@ -840,7 +1067,7 @@ function bagPills(){
   return p.join('');
 }
 function openDialog(who,text){
-  openInfo(`<div class="row"><div style="flex:0 0 26%">${heroSVG(S.hero,true)}</div>
+  openInfo(`<div class="row"><div style="flex:0 0 26%">${heroFace()}</div>
     <div><h2 style="text-align:left">${who}</h2><div class="kv" style="margin-top:.6vh">${text}</div></div></div>
     <div class="btnbar"><button class="big" onclick="closeInfo()">Continue</button></div>`);
 }
@@ -848,7 +1075,7 @@ function openInfo(html){ $('infoCard').innerHTML=html; $('info').classList.add('
 function closeInfo(){ $('info').classList.remove('on'); }
 function heroInfo(){
   const h=S.hero;
-  openInfo(`<div class="row"><div style="flex:0 0 30%">${heroSVG(h,true)}</div>
+  openInfo(`<div class="row"><div style="flex:0 0 30%">${heroFace()}</div>
     <div><h1 style="text-align:left">${h.name}</h1><h2 style="text-align:left">${h.role}</h2>
     <div class="kv"><b>Health:</b> ${Math.round(S.hp)}/${S.maxhp} &nbsp; <b>Stamina:</b> ${Math.round(S.sta)}/${S.maxsta}<br>
     <b>Skill:</b> ${h.skill}</div>
@@ -880,7 +1107,7 @@ function toast(html,ms=2000){ toastEl.innerHTML=html; toastEl.classList.add('sho
 // build hero picker
 $('heroGrid').innerHTML = HEROES.map(h=>`
   <div class="hero" onclick="newGame('${h.id}')">
-    ${h.portrait?`<img src="${h.portrait}" style="width:100%;height:9vh;object-fit:contain">`:heroSVG(h)}
+    ${h.portrait?`<img src="${h.portrait}" style="width:100%;height:15vh;object-fit:cover;object-position:50% 22%;border-radius:8px" onerror="this.outerHTML='${heroSVG(h).replace(/'/g,"&#39;")}'">`:heroSVG(h)}
     <div class="nm">${h.name}</div><div class="cl">${h.role}</div>
     <div class="sk">${h.skill}</div>
   </div>`).join('');
