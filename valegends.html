@@ -206,6 +206,10 @@
   .sprite svg{display:block;width:100%;height:100%}
   .sprite .shadow{position:absolute;left:12%;right:12%;bottom:-2%;height:12%;
     background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.42),transparent 70%);border-radius:50%}
+  .sprite img.pspr{width:100%;height:100%;object-fit:contain;display:block;
+    transform-origin:50% 100%}
+  .sprite.walking img.pspr{animation:sway .38s ease-in-out infinite alternate}
+  @keyframes sway{from{transform:rotate(-2.6deg) translateY(0)}to{transform:rotate(2.6deg) translateY(-3px)}}
   .sprite.walking .legA{animation:legA .38s ease-in-out infinite alternate}
   .sprite.walking .legB{animation:legB .38s ease-in-out infinite alternate}
   .sprite.walking .torso{animation:bob .38s ease-in-out infinite alternate}
@@ -1145,6 +1149,17 @@ AUDIO.setLocation=function(loc){
    ===================================================================== */
 const ICON = {berries:'🫐', fish:'🐟', stew:'🍲', bread:'🍞', iron:'⛏️',
   sulfur:'🌕', page:'📜', crystal:'💎', potion:'🧪', gold:'🪙'};
+
+// Directional player sprites sliced from the Multi-Angle Portfolio sheet.
+// Each set has front / side / back poses; `dir` is which way the side art faces.
+const SPRITESETS={
+  herbalist:{dir:1},  vanguard:{dir:-1},  shadow:{dir:-1},
+};
+const HERO2SET={ paladin:'vanguard', cleric:'vanguard', barbarian:'vanguard',
+  golem:'vanguard', spellblade:'vanguard', monk:'vanguard',
+  druid:'herbalist', bard:'herbalist', artificer:'herbalist',
+  warlock:'shadow', assassin:'shadow', necromancer:'shadow' };
+const sprPath=(set,pose)=>`assets/sprites/${set}_${pose}.png`;
 const BAND = {top:56, bot:93};          // walkable vertical band (% of screen)
 const PSPEED = {x:30, y:17};            // player speed, %/second
 
@@ -1222,10 +1237,20 @@ function buildWorld(){
     const home=n.pos||{x:30+Math.random()*40,y:70+Math.random()*18};
     E2.npcs.push({id,n,el,x:home.x,y:home.y,tx:home.x,ty:home.y,home,wait:1+Math.random()*2,f:1});
   });
-  // player
+  // player — your real multi-angle art if a sprite set exists, drawn fallback otherwise
   const el=document.createElement('div'); el.className='sprite';
-  const hc={c1:S.hero.c1,c2:S.hero.c2,skin:S.hero.skin,hair:shade(S.hero.c2,.35)};
-  el.innerHTML=spriteSVG(hc)+`<div class="shadow"></div>`;
+  const set=HERO2SET[S.hero.id];
+  if(set){
+    el.dataset.ar='1/2';
+    el.innerHTML=`<img class="pspr" id="pimg" src="${sprPath(set,'front')}"
+      onerror="this.closest('.sprite').dataset.ar='3/5';this.outerHTML=''">`
+      +`<div class="shadow"></div>`;
+    E2.pset=set; E2.ppose='front';
+  } else {
+    const hc={c1:S.hero.c1,c2:S.hero.c2,skin:S.hero.skin,hair:shade(S.hero.c2,.35)};
+    el.innerHTML=spriteSVG(hc)+`<div class="shadow"></div>`;
+    E2.pset=null;
+  }
   w.appendChild(el);
   E2.player=el;
   if(S.px==null){S.px=50;S.py=84;}
@@ -1233,10 +1258,26 @@ function buildWorld(){
   placeSprite(el,S.px,S.py,S.pf);
 }
 
+// choose front / side / back art based on movement direction
+function setPose(dx,dy){
+  if(!E2.pset) return;
+  let pose='front', flip=1;
+  if(dx||dy){
+    if(Math.abs(dy)>Math.abs(dx)*1.4) pose = dy<0?'back':'front';
+    else { pose='side'; flip = (dx>0)===(SPRITESETS[E2.pset].dir>0)?1:-1; }
+  } else { pose=E2.ppose==='back'?'back':'front'; flip=S.pf; }
+  S.pf=flip;
+  if(pose!==E2.ppose){
+    E2.ppose=pose;
+    const img=document.getElementById('pimg');
+    if(img) img.src=sprPath(E2.pset,pose);
+  }
+}
+
 function placeSprite(el,x,y,f){
   const s=.5+.65*Math.max(0,Math.min(1,(y-BAND.top)/(BAND.bot-BAND.top)));
   el.style.left=x+'%'; el.style.top=y+'%';
-  el.style.height=(15*s)+'%'; el.style.aspectRatio='3/5';
+  el.style.height=(15*s)+'%'; el.style.aspectRatio=el.dataset.ar||'3/5';
   el.style.transform=`translate(-50%,-100%) scaleX(${f})`;
   el.style.zIndex=Math.round(y*10);
 }
@@ -1257,7 +1298,7 @@ function tick(t){
     if(dx&&dy){dx*=.72;dy*=.72;}
     S.px=Math.max(0,Math.min(100,S.px+dx*PSPEED.x*dt));
     S.py=Math.max(BAND.top,Math.min(BAND.bot+2,S.py+dy*PSPEED.y*dt));
-    if(dx)S.pf=dx>0?1:-1;
+    if(E2.pset) setPose(dx,dy); else if(dx)S.pf=dx>0?1:-1;
     E2.player.classList.add('walking');
     // ---- edge exits ----
     const L=WORLD[S.loc];
