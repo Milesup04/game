@@ -189,6 +189,85 @@
   body.imgmode .qbadge.show{display:block}
   .qbadge b{color:var(--gold-bright)}
   .qbadge .done{color:#7fe07a}
+
+  /* ============================================================
+     WALK MODE — free-roam engine. You move a character sprite
+     inside the painted scene; NPCs wander; items lie on the
+     ground; edges lead to neighbouring areas. One compact HUD:
+     small health+energy bottom-left, hotbar centre, gold right.
+     ============================================================ */
+  body.walkmode #hud,body.walkmode #bars,body.walkmode #compass,body.walkmode #prompt,
+  body.walkmode #label,body.walkmode .hint,body.walkmode .quest,
+  body.walkmode #travel,body.walkmode #actions{display:none!important}
+  #world{position:absolute;inset:0;z-index:12;overflow:hidden;display:none}
+  body.walkmode #world{display:block}
+  .sprite{position:absolute;transform-origin:50% 100%;pointer-events:none;
+    filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
+  .sprite svg{display:block;width:100%;height:100%}
+  .sprite .shadow{position:absolute;left:12%;right:12%;bottom:-2%;height:12%;
+    background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.42),transparent 70%);border-radius:50%}
+  .sprite.walking .legA{animation:legA .38s ease-in-out infinite alternate}
+  .sprite.walking .legB{animation:legB .38s ease-in-out infinite alternate}
+  .sprite.walking .torso{animation:bob .38s ease-in-out infinite alternate}
+  @keyframes legA{from{transform:rotate(20deg)}to{transform:rotate(-20deg)}}
+  @keyframes legB{from{transform:rotate(-20deg)}to{transform:rotate(20deg)}}
+  @keyframes bob{from{transform:translateY(0)}to{transform:translateY(-2.5px)}}
+  .ntag{position:absolute;left:50%;transform:translateX(-50%);bottom:104%;
+    background:rgba(10,12,18,.78);border:1px solid rgba(232,193,90,.6);border-radius:6px;
+    padding:.15vh .5vw;font-size:.72vw;font-weight:700;color:var(--gold-bright);
+    white-space:nowrap;text-shadow:0 1px 2px #000}
+  .item-glint{animation:glint 1.6s ease-in-out infinite}
+  @keyframes glint{0%,100%{filter:drop-shadow(0 0 3px rgba(255,230,150,.4))}
+    50%{filter:drop-shadow(0 0 9px rgba(255,230,150,.95))}}
+  .exit-arrow{position:absolute;z-index:14;color:#fff;font-size:1.6vw;font-weight:900;
+    text-shadow:0 0 8px #000,0 2px 3px #000;opacity:.75;animation:pulse 1.6s infinite;pointer-events:none}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.95}}
+  .exit-arrow .lbl{font-size:.7vw;font-weight:700;color:var(--gold-bright);display:block;text-align:center}
+
+  /* the single compact bottom HUD */
+  #whud{display:none;position:absolute;left:0;right:0;bottom:0;z-index:26;
+    align-items:flex-end;gap:1vw;padding:.8vh 1.1vw 1vh;
+    background:linear-gradient(180deg,rgba(8,10,16,0),rgba(6,8,12,.85) 70%)}
+  body.walkmode #whud{display:flex}
+  #wbars{flex:0 0 auto;width:15%;min-width:120px}
+  #wbars .hud-row{margin-bottom:.35vh}
+  #wbars .hbar{height:1.1vw;max-height:14px;min-height:9px}
+  #wbars .hbar .t{font-size:.6vw}
+  #wbars .ic{width:1.3vw;height:1.3vw;max-width:17px;max-height:17px;min-width:11px}
+  #hotbar{flex:0 0 auto;margin:0 auto;display:flex;gap:.4vw}
+  .slot{position:relative;width:3.4vw;height:3.4vw;max-width:46px;max-height:46px;min-width:34px;min-height:34px;
+    background:rgba(20,16,10,.85);border:2px solid #5a4a2a;border-radius:8px;cursor:pointer;
+    box-shadow:0 2px 5px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.08) inset;
+    display:flex;align-items:center;justify-content:center}
+  .slot:hover{border-color:var(--gold)}
+  .slot .num{position:absolute;top:1px;left:4px;font-size:.6vw;color:#c9b98a;font-weight:700}
+  .slot .cnt{position:absolute;bottom:1px;right:4px;font-size:.65vw;color:#fff;font-weight:800;text-shadow:0 1px 2px #000}
+  .slot .ico{font-size:1.5vw;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+  .slot.empty .ico{opacity:.18}
+  #wright{flex:0 0 auto;margin-left:auto;text-align:right;font-size:.85vw;color:#f0e6cf;
+    text-shadow:0 1px 2px #000;line-height:1.5}
+  #wright b{color:var(--gold-bright)}
+  #wloc{font-weight:800;color:var(--gold-bright);letter-spacing:.4px}
+
+  /* walk-mode interact prompt (single, above hotbar) */
+  #ep{position:absolute;left:50%;bottom:11%;transform:translateX(-50%);z-index:24;
+    font-size:1.4vw;font-weight:800;color:#fff;text-shadow:0 2px 5px rgba(0,0,0,.95),0 0 2px #000;
+    white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
+  #ep.show{opacity:1}
+  #ep .k{color:var(--gold-bright)}
+
+  /* inventory (Tab) */
+  #inv .card{min-width:52%}
+  #invGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:.6vw;margin-top:1vh}
+  .invItem{position:relative;background:#15161c;border:2px solid #3a3a44;border-radius:10px;
+    padding:.9vh .4vw 1.6vh;text-align:center;cursor:pointer;transition:border-color .12s,transform .1s}
+  .invItem:hover{border-color:var(--gold);transform:translateY(-2px)}
+  .invItem .ico{font-size:1.9vw}
+  .invItem .nm{font-size:.72vw;margin-top:.3vh;color:#e8e0cf}
+  .invItem .cnt{position:absolute;top:3px;right:7px;font-size:.75vw;font-weight:800;color:var(--gold-bright)}
+  .invItem.inhot{border-color:var(--gold);background:#1f1c12}
+  .invItem.inhot::after{content:"HOTBAR";position:absolute;bottom:2px;left:0;right:0;
+    font-size:.55vw;color:var(--gold);font-weight:800;letter-spacing:.5px}
   @media (max-width:640px){
     .hud-loc{font-size:13px}.hud-sub,.navb,.actb,.hbar .t{font-size:10px}.qbadge{font-size:10px}
     #prompt{font-size:14px}.tbtn,.abtn{font-size:11px}.card h1{font-size:22px}
@@ -239,6 +318,34 @@
 
     <!-- quest badge (image mode) -->
     <div class="qbadge" id="qbadge"></div>
+
+    <!-- free-roam layer: player, NPCs, ground items, exit arrows -->
+    <div id="world"></div>
+    <div id="ep"></div>
+
+    <!-- single compact bottom HUD: bars / hotbar / location+gold -->
+    <div id="whud">
+      <div id="wbars">
+        <div class="hud-row">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.2 8 2 4.5 5.3 4.5c2 0 3.3 1.2 4.2 2.6C10.4 5.7 11.7 4.5 13.7 4.5 17 4.5 18.8 8 16 11.7 13.5 16.4 12 21 12 21z" fill="#e5484d" stroke="#7a1417" stroke-width="1.2"/></svg>
+          <div class="hbar hp"><div class="f" id="whpf"></div><div class="t" id="whpt"></div></div>
+        </div>
+        <div class="hud-row">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-13h-6l1-7z" fill="#ffd23a" stroke="#8a6a10" stroke-width="1.1"/></svg>
+          <div class="hbar sta"><div class="f" id="wstaf"></div><div class="t" id="wstat"></div></div>
+        </div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="wright"><span id="wloc"></span><br>Gold <b id="wgold">0</b> · <span style="opacity:.75">TAB inventory</span></div>
+    </div>
+
+    <!-- inventory (Tab) -->
+    <div class="modal" id="inv"><div class="card">
+      <h1 style="font-size:1.6vw">Inventory</h1>
+      <div class="sub">Click an item to add it to / remove it from your hotbar. Press <b>1–5</b> or click a hotbar slot to use it.</div>
+      <div id="invGrid"></div>
+      <div class="btnbar"><button class="big" onclick="toggleInv(false)">Close (Tab)</button></div>
+    </div></div>
 
     <!-- live bottom HUD (image mode) -->
     <div id="hud">
@@ -419,10 +526,14 @@ function newGame(heroId){
     buff:{},                 // permanent perks earned from quests
     flags:{},                // misc one-time flags
     dead:false, ruinOpen:false,
+    hot:['berries','bread',null,null,null],  // hotbar slots (keys 1-5)
+    px:50, py:84, pf:1,                      // player position + facing
   };
   document.body.classList.add('imgmode');   // painted panels are the scene
+  document.body.classList.add('walkmode');  // free-roam engine on
   $('pick').classList.remove('on');
-  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}`, 3600);
+  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}<br><span style="opacity:.8">Walk with WASD · E interact · Tab inventory</span>`, 4200);
+  if(!E2.raf) E2.raf=requestAnimationFrame(tick);
 }
 
 /* =====================================================================
@@ -738,11 +849,15 @@ function heroProp(h){
 /* =====================================================================
    7) RENDER
    ===================================================================== */
+let _paintedLoc=null;
 function render(){
   const L = WORLD[S.loc];
-  // scene (image slot wins if provided)
-  if(L.img){ scene.innerHTML = `<img src="${L.img}" alt="${L.name}">`; }
-  else { scene.innerHTML = (PAINT[L.biome]||PAINT.village)(L.pal); }
+  // scene (image slot wins if provided); only repaint on scene change
+  if(_paintedLoc!==S.loc){
+    _paintedLoc=S.loc;
+    if(L.img){ scene.innerHTML = `<img src="${L.img}" alt="${L.name}">`; }
+    else { scene.innerHTML = (PAINT[L.biome]||PAINT.village)(L.pal); }
+  }
   // bars
   $('hpfill').style.transform = `scaleX(${Math.max(0,S.hp/S.maxhp)})`;
   $('stafill').style.transform = `scaleX(${Math.max(0,S.sta/S.maxsta)})`;
@@ -764,6 +879,8 @@ function render(){
   // live bottom HUD (image mode)
   populateHud(L, canAct);
   drawQBadge();
+  // free-roam: rebuild sprites + compact HUD
+  if(document.body.classList.contains('walkmode')){ buildWorld(); drawWhud(); }
 }
 
 /* live bottom bar: bars, travel, location, context actions incl. NPCs */
@@ -829,6 +946,289 @@ function drawQuest(){
 function allGathered(){return has('iron')&&has('sulfur')&&has('page');}
 
 /* =====================================================================
+   7b) FREE-ROAM ENGINE — walk around inside each painted scene.
+       Player + NPC sprites, ground items, hotspots, edge exits.
+   ===================================================================== */
+const ICON = {berries:'🫐', fish:'🐟', stew:'🍲', bread:'🍞', iron:'⛏️',
+  sulfur:'🌕', page:'📜', crystal:'💎', potion:'🧪', gold:'🪙'};
+const BAND = {top:56, bot:93};          // walkable vertical band (% of screen)
+const PSPEED = {x:30, y:17};            // player speed, %/second
+
+// per-location roam config: hotspot position, ground item spawns
+const ROAM = {
+  square:{hot:{x:50,y:74}, items:[{k:'gold',x:24,y:86},{k:'berries',x:80,y:88}]},
+  hall:{hot:{x:30,y:72}}, inn:{hot:{x:38,y:78}}, temple:{hot:{x:50,y:72}},
+  market:{hot:{x:82,y:74}, items:[{k:'bread',x:18,y:88}]},
+  smithy:{hot:{x:26,y:76}}, gate:{hot:{x:56,y:74}},
+  cemetery:{hot:{x:66,y:76}, items:[{k:'gold',x:30,y:88}]},
+  forest:{hot:{x:60,y:80}, items:[{k:'berries',x:22,y:84},{k:'berries',x:44,y:90},{k:'berries',x:84,y:82}]},
+  clearing:{hot:{x:68,y:80}, items:[{k:'berries',x:30,y:88}]},
+  lake:{hot:{x:26,y:82}, items:[{k:'fish',x:70,y:90}]},
+  waterfall:{hot:{x:50,y:82}, items:[{k:'gold',x:78,y:88}]},
+  cave:{hot:{x:80,y:74}, items:[{k:'crystal',x:30,y:86},{k:'crystal',x:58,y:90}]},
+  mine:{hot:{x:50,y:74}, items:[{k:'iron',x:22,y:86}]},
+  bridge:{hot:{x:50,y:72}}, trail:{hot:{x:70,y:76}},
+  vantage:{hot:{x:60,y:76}, items:[{k:'gold',x:34,y:86}]},
+  volcano:{hot:{x:44,y:80}, items:[{k:'sulfur',x:72,y:88}]},
+  ruin:{hot:{x:50,y:74}}, library:{hot:{x:52,y:74}}, portal:{hot:{x:50,y:72}},
+};
+
+// full-body walking sprite (side view, legs animate via CSS classes)
+function spriteSVG(c){ // c:{c1 body, c2 trim, skin, hair}
+  return `<svg viewBox="0 0 60 100">
+    <g class="legA" style="transform-origin:26px 72px">
+      <rect x="22" y="70" width="8" height="24" rx="4" fill="${shade(c.c1,.35)}"/>
+      <ellipse cx="26" cy="95" rx="7" ry="4" fill="#2a2018"/></g>
+    <g class="legB" style="transform-origin:34px 72px">
+      <rect x="30" y="70" width="8" height="24" rx="4" fill="${shade(c.c1,.25)}"/>
+      <ellipse cx="34" cy="95" rx="7" ry="4" fill="#2a2018"/></g>
+    <g class="torso">
+      <path d="M18 74 Q16 44 30 42 Q44 44 42 74 Z" fill="${c.c1}" stroke="#1a140c" stroke-width="1.6"/>
+      <path d="M22 74 L22 56 L30 50 L38 56 L38 74 Z" fill="${c.c2}" opacity=".92"/>
+      <rect x="12" y="46" width="7" height="22" rx="3.5" fill="${c.c1}" stroke="#1a140c" stroke-width="1.2"/>
+      <rect x="41" y="46" width="7" height="22" rx="3.5" fill="${c.c1}" stroke="#1a140c" stroke-width="1.2"/>
+      <circle cx="30" cy="30" r="12" fill="${c.skin}" stroke="#1a140c" stroke-width="1.6"/>
+      <path d="M18 28 Q22 14 30 14 Q38 14 42 28 Q36 20 30 20 Q24 20 18 28 Z" fill="${c.hair||c.c2}" stroke="#1a140c" stroke-width="1.2"/>
+      <circle cx="34" cy="30" r="1.6" fill="#1a140c"/>
+    </g></svg>`;
+}
+
+// engine state (not saved): DOM refs + live coords
+const E2 = {player:null, npcs:[], items:[], keys:new Set(), last:0, raf:0};
+
+function anyModal(){ return ['pick','info','inv'].some(id=>$(id).classList.contains('on')); }
+
+function buildWorld(){
+  if(E2.builtLoc===S.loc && E2.player && E2.player.isConnected) return; // same scene: keep sprites live
+  E2.builtLoc=S.loc;
+  const w=$('world'); w.innerHTML=''; E2.npcs=[]; E2.items=[];
+  const L=WORLD[S.loc], R=ROAM[S.loc]||{};
+  // exit arrows
+  const pos={n:'left:50%;top:8%;transform:translateX(-50%)', s:'left:50%;bottom:9%;transform:translateX(-50%)',
+             w:'left:1.2%;top:70%', e:'right:1.2%;top:70%'};
+  const chev={n:'▲',s:'▼',w:'◀',e:'▶'};
+  for(const d in L.links){
+    const el=document.createElement('div'); el.className='exit-arrow'; el.style.cssText=pos[d];
+    el.innerHTML=`${chev[d]}<span class="lbl">${WORLD[L.links[d]].name}</span>`; w.appendChild(el);
+  }
+  // ground items
+  (R.items||[]).forEach(it=>{
+    const el=document.createElement('div'); el.className='sprite item-glint';
+    el.style.cssText=`height:5.5%;aspect-ratio:1;font-size:2vw;display:flex;align-items:center;justify-content:center;
+      left:${it.x}%;top:${it.y}%;transform:translate(-50%,-100%);z-index:${Math.round(it.y*10)}`;
+    el.textContent=ICON[it.k]||'✨';
+    w.appendChild(el); E2.items.push({k:it.k,x:it.x,y:it.y,el,got:false});
+  });
+  // NPC sprites at their home location
+  npcsAt(S.loc).forEach(([id,n])=>{
+    const el=document.createElement('div'); el.className='sprite';
+    const pal=n.pal||{c1:'#7a5a3a',c2:'#caa24a',skin:'#e7b98f',hair:'#5a3d28'};
+    el.innerHTML=spriteSVG(pal)+`<div class="shadow"></div><div class="ntag">${n.name}</div>`;
+    w.appendChild(el);
+    const home=n.pos||{x:30+Math.random()*40,y:70+Math.random()*18};
+    E2.npcs.push({id,n,el,x:home.x,y:home.y,tx:home.x,ty:home.y,home,wait:1+Math.random()*2,f:1});
+  });
+  // player
+  const el=document.createElement('div'); el.className='sprite';
+  const hc={c1:S.hero.c1,c2:S.hero.c2,skin:S.hero.skin,hair:shade(S.hero.c2,.35)};
+  el.innerHTML=spriteSVG(hc)+`<div class="shadow"></div>`;
+  w.appendChild(el);
+  E2.player=el;
+  if(S.px==null){S.px=50;S.py=84;}
+  S.pf=S.pf||1;
+  placeSprite(el,S.px,S.py,S.pf);
+}
+
+function placeSprite(el,x,y,f){
+  const s=.5+.65*Math.max(0,Math.min(1,(y-BAND.top)/(BAND.bot-BAND.top)));
+  el.style.left=x+'%'; el.style.top=y+'%';
+  el.style.height=(15*s)+'%'; el.style.aspectRatio='3/5';
+  el.style.transform=`translate(-50%,-100%) scaleX(${f})`;
+  el.style.zIndex=Math.round(y*10);
+}
+function dist2(ax,ay,bx,by){const dx=(ax-bx)*1.78,dy=ay-by;return dx*dx+dy*dy;}
+
+function tick(t){
+  E2.raf=requestAnimationFrame(tick);
+  const dt=Math.min(.05,(t-E2.last)/1000)||0; E2.last=t;
+  if(!S||S.dead||anyModal()||!document.body.classList.contains('walkmode')) return;
+  // ---- player movement ----
+  let dx=0,dy=0;
+  if(E2.keys.has('a')||E2.keys.has('arrowleft'))dx-=1;
+  if(E2.keys.has('d')||E2.keys.has('arrowright'))dx+=1;
+  if(E2.keys.has('w')||E2.keys.has('arrowup'))dy-=1;
+  if(E2.keys.has('s')||E2.keys.has('arrowdown'))dy+=1;
+  const moving=dx||dy;
+  if(moving){
+    if(dx&&dy){dx*=.72;dy*=.72;}
+    S.px=Math.max(0,Math.min(100,S.px+dx*PSPEED.x*dt));
+    S.py=Math.max(BAND.top,Math.min(BAND.bot+2,S.py+dy*PSPEED.y*dt));
+    if(dx)S.pf=dx>0?1:-1;
+    E2.player.classList.add('walking');
+    // ---- edge exits ----
+    const L=WORLD[S.loc];
+    if(S.px<=0.5&&L.links.w) return transition('w');
+    if(S.px>=99.5&&L.links.e) return transition('e');
+    if(S.py<=BAND.top+0.4&&dy<0&&L.links.n) return transition('n');
+    if(S.py>=BAND.bot+1.6&&L.links.s) return transition('s');
+  } else E2.player.classList.remove('walking');
+  placeSprite(E2.player,S.px,S.py,S.pf);
+  // ---- item pickup ----
+  E2.items.forEach(it=>{
+    if(!it.got&&dist2(S.px,S.py,it.x,it.y)<16){
+      it.got=true; it.el.remove();
+      if(it.k==='gold'){const g=3+Math.floor(Math.random()*4);S.gold+=g;toast(`Picked up <b>${g} gold</b>`,1200);}
+      else{give(it.k,1);toast(`Picked up <b>${ITEMS[it.k].name}</b>`,1200);}
+      drawWhud();drawQBadge();
+    }});
+  // ---- NPC wander ----
+  E2.npcs.forEach(o=>{
+    const near=dist2(S.px,S.py,o.x,o.y)<90;
+    if(near){ o.el.classList.remove('walking'); o.f=(S.px<o.x)?-1:1; }
+    else{
+      const ddx=o.tx-o.x, ddy=o.ty-o.y, d=Math.hypot(ddx*1.78,ddy);
+      if(d<1){ o.wait-=dt;
+        if(o.wait<=0){ o.tx=Math.max(4,Math.min(96,o.home.x+(Math.random()*36-18)));
+          o.ty=Math.max(BAND.top+2,Math.min(BAND.bot,o.home.y+(Math.random()*14-7)));
+          o.wait=1.5+Math.random()*3; }
+        o.el.classList.remove('walking');
+      } else { const sp=7*dt; o.x+=ddx/d*sp*1.0; o.y+=ddy/d*sp*.6;
+        if(Math.abs(ddx)>.3)o.f=ddx>0?1:-1; o.el.classList.add('walking'); }
+    }
+    placeSprite(o.el,o.x,o.y,o.f);
+  });
+  // ---- interact prompt ----
+  updatePrompt();
+}
+
+function nearestTarget(){
+  let best=null,bd=110;
+  E2.npcs.forEach(o=>{const d=dist2(S.px,S.py,o.x,o.y);if(d<bd){bd=d;best={t:'npc',o};}});
+  const R=ROAM[S.loc];
+  if(R&&R.hot){const d=dist2(S.px,S.py,R.hot.x,R.hot.y);if(d<bd){bd=d;best={t:'hot'};}}
+  return best;
+}
+function updatePrompt(){
+  const L=WORLD[S.loc]; const tgt=nearestTarget(); const ep=$('ep');
+  if(!tgt){ep.classList.remove('show');return;}
+  if(tgt.t==='npc'){
+    const n=tgt.o.n; let mark='';
+    if(n.trade) mark='';
+    else if(n.mainquest) mark = S.quest===0?' !':(S.quest===2?' ✓':'');
+    else { const st=S.quests[tgt.o.id];
+      mark = st==='done'?'':(st==='active'?(questMet(n)?' ✓':' …'):' !'); }
+    ep.innerHTML=`Press <span class="k">[E]</span> to ${n.trade?'Trade with':'Talk to'} ${n.name}${mark}`;
+  } else if(actionAvailable(L)){
+    ep.innerHTML=`Press <span class="k">[E]</span> ${L.prompt}`;
+  } else {ep.classList.remove('show');return;}
+  ep.classList.add('show');
+}
+function interact(){
+  if(S.dead)return;
+  const tgt=nearestTarget();
+  if(!tgt)return;
+  if(tgt.t==='npc'){ const n=tgt.o.n; n.trade?openTrade():talkNPC(tgt.o.id); }
+  else doAction();
+  drawWhud();
+}
+
+function transition(dir){
+  const L=WORLD[S.loc]; const to=L.links[dir]; if(!to)return;
+  let cost=8; if(S.hero.id==='bard')cost=4; if(S.buff.boots)cost=Math.max(2,cost-3);
+  const f=$('fade'); f.classList.add('on');
+  E2.keys.clear();
+  setTimeout(()=>{
+    S.loc=to; spend(cost);
+    if(S.hero.id==='monk')S.sta=Math.min(S.maxsta,S.sta+3);
+    // enter from the opposite edge
+    if(dir==='w')S.px=97; else if(dir==='e')S.px=3;
+    else if(dir==='n'){S.py=BAND.bot;S.px=Math.max(4,Math.min(96,S.px));}
+    else if(dir==='s'){S.py=BAND.top+2;S.px=Math.max(4,Math.min(96,S.px));}
+    render(); f.classList.remove('on');
+  },240);
+}
+
+/* ---------- hotbar + inventory ---------- */
+function drawWhud(){
+  $('whpf').style.transform=`scaleX(${Math.max(0,S.hp/S.maxhp)})`;
+  $('wstaf').style.transform=`scaleX(${Math.max(0,S.sta/S.maxsta)})`;
+  $('whpt').textContent=`${Math.max(0,Math.round(S.hp))}/${S.maxhp}`;
+  $('wstat').textContent=`${Math.max(0,Math.round(S.sta))}/${S.maxsta}`;
+  $('wloc').textContent=WORLD[S.loc].name;
+  $('wgold').textContent=S.gold;
+  document.body.classList.toggle('hurt',S.hp>0&&S.hp/S.maxhp<0.25);
+  // hotbar
+  let h='';
+  for(let i=0;i<5;i++){
+    const k=S.hot[i]; const cnt=k?(S.bag[k]||0):0;
+    if(k&&cnt<=0){S.hot[i]=null;}
+    const kk=S.hot[i];
+    h+=`<div class="slot ${kk?'':'empty'}" onclick="useSlot(${i})" title="${kk?ITEMS[kk].name:'empty'}">
+      <span class="num">${i+1}</span><span class="ico">${kk?ICON[kk]||'❔':'·'}</span>
+      ${kk?`<span class="cnt">${S.bag[kk]||0}</span>`:''}</div>`;
+  }
+  $('hotbar').innerHTML=h;
+}
+function useSlot(i){
+  const k=S.hot[i]; if(!k){toast('Empty slot — assign items from your inventory (Tab).',1400);return;}
+  if(!has(k)){S.hot[i]=null;drawWhud();return;}
+  const it=ITEMS[k];
+  if(it.food!=null||it.sta!=null){ eatItem(k); }
+  else toast(`<b>${it.name}</b> — a quest item. Someone in the valley needs this.`,1600);
+  drawWhud();
+}
+function eatItem(k){
+  const it=ITEMS[k]; take(k,1);
+  S.hp=Math.min(S.maxhp,S.hp+(it.food||0)); S.sta=Math.min(S.maxsta,S.sta+(it.sta||0));
+  toast(`You use <b>${it.name}</b>. ${it.food?('+'+it.food+' health '):''}${it.sta?('+'+it.sta+' energy'):''}`,1500);
+  drawWhud();
+}
+function toggleInv(on){
+  const m=$('inv'); const want=on!=null?on:!m.classList.contains('on');
+  m.classList.toggle('on',want);
+  if(want)drawInv();
+}
+function drawInv(){
+  const g=$('invGrid'); const keys=Object.keys(S.bag);
+  if(!keys.length){g.innerHTML='<div class="sub" style="grid-column:1/-1">Your bag is empty — explore, gather and trade.</div>';return;}
+  g.innerHTML=keys.map(k=>{
+    const inhot=S.hot.includes(k);
+    return `<div class="invItem ${inhot?'inhot':''}" onclick="invClick('${k}')">
+      <span class="cnt">×${S.bag[k]}</span><div class="ico">${ICON[k]||'❔'}</div>
+      <div class="nm">${ITEMS[k].name}</div></div>`;}).join('');
+}
+function invClick(k){
+  const i=S.hot.indexOf(k);
+  if(i>=0){S.hot[i]=null;toast(`<b>${ITEMS[k].name}</b> removed from hotbar.`,1100);}
+  else{const free=S.hot.indexOf(null);
+    if(free<0){toast('Hotbar full — remove something first.',1400);return;}
+    S.hot[free]=k;toast(`<b>${ITEMS[k].name}</b> → hotbar slot ${free+1}.`,1100);}
+  drawInv();drawWhud();
+}
+
+/* ---------- trader (buy AND sell, Zelda-style economy) ---------- */
+const SELL={iron:8,sulfur:8,crystal:10,fish:4,berries:2,bread:3,stew:9,potion:10};
+function openTrade(){
+  const stock=[['bread',5],['fish',9],['stew',16],['potion',14]];
+  const sellable=Object.keys(S.bag).filter(k=>SELL[k]&&S.bag[k]>0);
+  openInfo(`<h1 style="font-size:1.6vw">Trader</h1><div class="sub">Gold: <b>${S.gold}</b></div>
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1"><h2 style="text-align:left">Buy</h2><div class="kv">
+        ${stock.map(([k,c])=>`<div>${ICON[k]} ${ITEMS[k].name} — <b>${c}g</b>
+          <button class="big" style="padding:.2vh .8vw;font-size:.85vw;margin-left:.6vw" onclick="tradeBuy('${k}',${c})">Buy</button></div>`).join('')}
+      </div></div>
+      <div style="flex:1"><h2 style="text-align:left">Sell</h2><div class="kv">
+        ${sellable.length?sellable.map(k=>`<div>${ICON[k]} ${ITEMS[k].name} ×${S.bag[k]} — <b>${SELL[k]}g</b>
+          <button class="big" style="padding:.2vh .8vw;font-size:.85vw;margin-left:.6vw" onclick="tradeSell('${k}')">Sell</button></div>`).join('')
+          :'<div style="opacity:.7">Nothing to sell yet — gather ore, crystals, fish…</div>'}
+      </div></div>
+    </div>
+    <div class="btnbar"><button class="big" onclick="closeInfo()">Leave</button></div>`);
+}
+function tradeBuy(k,c){ if(S.gold<c){toast('Not enough gold.',1200);return;} S.gold-=c; give(k,1); openTrade(); drawWhud(); }
+function tradeSell(k){ if(!has(k))return; take(k,1); S.gold+=SELL[k]; openTrade(); drawWhud(); }
+
+/* =====================================================================
    8) MOVEMENT + TICK
    ===================================================================== */
 function go(dir){
@@ -869,43 +1269,45 @@ function checkDeath(){
        and pays a real reward. Add or edit freely; it's all data.
    ===================================================================== */
 const NPCS = {
-  innkeeper:{name:'Innkeeper', loc:'inn', title:'Empty Pot',
+  mayor:{name:'The Mayor', loc:'hall', mainquest:true, pos:{x:34,y:76}, pal:{c1:'#5a3a5a',c2:'#caa24a',skin:'#e7b98f',hair:'#c9c2b8'}},
+  trader:{name:'Trader', loc:'square', trade:true, pos:{x:72,y:80}, pal:{c1:'#8a5a2a',c2:'#c98b4a',skin:'#d8a86a',hair:'#3a2a1a'}},
+  innkeeper:{name:'Innkeeper', loc:'inn', title:'Empty Pot', pos:{x:60,y:78}, pal:{c1:'#7a3a2a',c2:'#e8dcc0',skin:'#e7b98f',hair:'#5a3d28'},
     offer:"The stew pot's gone cold and travelers are grumbling. Bring me <b>3 Berries</b> from the forest and I'll cook you a feast.",
     need:{berries:3}, reminder:"Still need <b>3 Berries</b> for the pot — the forest bushes are thick with them.",
     rewardText:"You get <b>2 Hearty Stew</b> and <b>10 gold</b>!",
     reward(){ take('berries',3); give('stew',2); S.gold+=10; },
     done:"That stew's the best in the valley now. Thank you, friend." },
-  smith:{name:'Blacksmith', loc:'smithy', title:'Sharper Tools',
+  smith:{name:'Blacksmith', loc:'smithy', title:'Sharper Tools', pos:{x:64,y:78}, pal:{c1:'#4a4a52',c2:'#7a3a2a',skin:'#d8a86a',hair:'#2a2018'},
     offer:"My tools are worn to nubs. Fetch me <b>1 Iron Ore</b> from the mine and I'll forge you boots that never tire.",
     need:{iron:1}, reminder:"Bring me <b>1 Iron Ore</b> — the mine's just east of the forest.",
     rewardText:"You receive <b>Sturdy Boots</b> (travel costs less stamina) and <b>12 gold</b>!",
     reward(){ take('iron',1); S.buff.boots=true; S.gold+=12; },
     done:"Those boots treating you well? Safe travels." },
-  alchemist:{name:'Alchemist', loc:'market', title:'Glow in the Dark',
+  alchemist:{name:'Alchemist', loc:'market', title:'Glow in the Dark', pos:{x:56,y:76}, pal:{c1:'#3a5a4a',c2:'#8a6adf',skin:'#e7c29a',hair:'#e8e2cf'},
     offer:"I'm brewing a new tonic but I'm out of reagent. Bring me <b>1 Glow Crystal</b> from the cave by the lake.",
     need:{crystal:1}, reminder:"I still need <b>1 Glow Crystal</b> — try the Glow Cave west of the lake.",
     rewardText:"You receive <b>2 Healing Potions</b> and <b>8 gold</b>!",
     reward(){ take('crystal',1); give('potion',2); S.gold+=8; },
     done:"The tonic sold out in a day. Come back anytime." },
-  fisher:{name:'Old Angler', loc:'lake', title:'The Glimmerfin',
+  fisher:{name:'Old Angler', loc:'lake', title:'The Glimmerfin', pos:{x:60,y:84}, pal:{c1:'#3a5a6a',c2:'#caa24a',skin:'#d8b48c',hair:'#c9c2b8'},
     offer:"These waters hide a shimmering fish. Catch me <b>2 Smoked Fish</b> and I'll teach you my secret.",
     need:{fish:2}, reminder:"Land me <b>2 Smoked Fish</b> — cast off the dock here.",
     rewardText:"You learn <b>Angler's Luck</b> (fishing yields double) and <b>15 gold</b>!",
     reward(){ take('fish',2); S.buff.angler=true; S.gold+=15; },
     done:"May your line always be tight." },
-  gravekeeper:{name:'Gravekeeper', loc:'cemetery', title:'Rest in Peace',
+  gravekeeper:{name:'Gravekeeper', loc:'cemetery', title:'Rest in Peace', pos:{x:36,y:80}, pal:{c1:'#3a3a44',c2:'#5a5a66',skin:'#c9b89a',hair:'#8a8f96'},
     offer:"An old hero lies here, unmourned. Simply <b>pay your respects</b> at the grave, and I'll give you what he left behind.",
     need:{flag:'paidRespects'}, reminder:"Press the grave action here to <b>pay respects</b> first.",
     rewardText:"You receive the <b>Old Amulet</b> — your maximum health rises by 20!",
     reward(){ S.maxhp+=20; S.hp+=20; },
     done:"He rests easier now. So should you." },
-  scholar:{name:'Scholar', loc:'library', title:'The Lost Rite',
+  scholar:{name:'Scholar', loc:'library', title:'The Lost Rite', pos:{x:66,y:76}, pal:{c1:'#4a3a6a',c2:'#caa24a',skin:'#e7b98f',hair:'#5a3d28'},
     offer:"The rite to wake the Sunwell is written on a <b>Chronicle Page</b> in these stacks. Read it and bring word back to me.",
     need:{item:'page'}, reminder:"Find and <b>read the Chronicle</b> here to copy the page.",
     rewardText:"You receive <b>20 gold</b>, and the Scholar marks the Portal Ruin on your map.",
     reward(){ S.gold+=20; S.flags.portalKnown=true; },
     done:"The rite is yours. Only the portal remains." },
-  hunter:{name:'Forester', loc:'forest', title:'Winter Stores',
+  hunter:{name:'Forester', loc:'forest', title:'Winter Stores', pos:{x:34,y:78}, pal:{c1:'#3f6b34',c2:'#7a5a3a',skin:'#d8b48c',hair:'#5a3d28'},
     offer:"Winter's coming and the village larder is bare. Gather <b>4 Berries</b> for the stores.",
     need:{berries:4}, reminder:"Gather <b>4 Berries</b> from these bushes for the larder.",
     rewardText:"You receive <b>2 Bread</b> and <b>10 gold</b>!",
@@ -927,7 +1329,10 @@ function heroFace(){
     : heroSVG(h,true);
 }
 function talkNPC(id){
-  const n=NPCS[id]; const st=S.quests[id];
+  const n=NPCS[id];
+  if(n.mainquest){ ACTIONS.mayor(); drawQBadge(); return; }
+  if(n.trade){ openTrade(); return; }
+  const st=S.quests[id];
   const face=`<div style="flex:0 0 26%">${heroFace()}</div>`;
   if(!st){
     openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name} — “${n.title}”</h2>
@@ -1086,19 +1491,29 @@ function heroInfo(){
 /* =====================================================================
    11) INPUT + BOOT
    ===================================================================== */
+const MOVE_KEYS=['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'];
 addEventListener('keydown',e=>{
   if($('pick').classList.contains('on')) return;
   const k=e.key.toLowerCase();
+  if(k==='tab'){ e.preventDefault();
+    if(!$('info').classList.contains('on')) toggleInv(); return; }
   if($('info').classList.contains('on')){ if(k==='escape'||k==='enter') closeInfo(); return; }
-  if(k==='w'||k==='arrowup') go('n');
-  else if(k==='s'||k==='arrowdown') go('s');
-  else if(k==='a'||k==='arrowleft') go('w');
-  else if(k==='d'||k==='arrowright') go('e');
-  else if(k==='e'||k===' ') doAction();
+  if($('inv').classList.contains('on')){ if(k==='escape') toggleInv(false); return; }
+  const walk=document.body.classList.contains('walkmode');
+  if(walk && MOVE_KEYS.includes(k)){ e.preventDefault(); E2.keys.add(k); return; }
+  if(!walk){ // legacy screen-hop controls
+    if(k==='w'||k==='arrowup') return go('n');
+    if(k==='s'||k==='arrowdown') return go('s');
+    if(k==='a'||k==='arrowleft') return go('w');
+    if(k==='d'||k==='arrowright') return go('e');
+  }
+  if(k==='e'||k===' '){ e.preventDefault(); walk?interact():doAction(); }
   else if(k==='f') eat();
   else if(k==='i') heroInfo();
-  else if(k==='m') toast('The compass (top-right) shows the whole valley — you are the blue dot.',2200);
+  else if(['1','2','3','4','5'].includes(k)) useSlot(+k-1);
 });
+addEventListener('keyup',e=>{ E2.keys.delete(e.key.toLowerCase()); });
+addEventListener('blur',()=>E2.keys.clear());
 $('eBtn').onclick=doAction;
 
 function toast(html,ms=2000){ toastEl.innerHTML=html; toastEl.classList.add('show');
