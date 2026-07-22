@@ -248,15 +248,25 @@
   .sprite.ehurt img,.sprite.ehurt svg{filter:brightness(2.2) saturate(.4)}
   .sprite.edie{transition:opacity .5s,transform .5s;opacity:0!important}
   .sprite{position:absolute;transform-origin:50% 100%;pointer-events:none;
-    filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
+    filter:drop-shadow(2px 3px 2px rgba(20,14,8,.4))}
   .sprite svg{display:block;width:100%;height:100%}
-  .sprite .shadow{position:absolute;left:-6%;right:-6%;bottom:-3.5%;height:16%;
-    background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.5),transparent 68%);
-    border-radius:50%;filter:blur(2px)}
+  /* ground contact shadow — offset toward lower-right to match the light */
+  .sprite .shadow{position:absolute;left:-4%;right:-12%;bottom:-3%;height:15%;
+    background:radial-gradient(50% 50% at 44% 50%,rgba(10,8,4,.5),transparent 66%);
+    border-radius:50%;filter:blur(2.4px);transform-origin:44% 50%}
   .sprite img.pspr{width:100%;height:100%;object-fit:contain;display:block;
-    transform-origin:50% 100%}
-  .sprite.walking img.pspr{animation:sway .38s ease-in-out infinite alternate}
-  @keyframes sway{from{transform:rotate(-2.6deg) translateY(0)}to{transform:rotate(2.6deg) translateY(-3px)}}
+    transform-origin:50% 96%}
+  /* two-step bounce walk: plant-lean-plant per cycle, reads as striding */
+  .sprite.walking img.pspr{animation:walkcyc .46s steps(60) infinite}
+  @keyframes walkcyc{
+    0%  {transform:translateY(0)    rotate(-2.4deg) scale(1,1)}
+    24% {transform:translateY(-3.5%) rotate(0deg)  scale(.985,1.02)}
+    50% {transform:translateY(0)    rotate(2.4deg)  scale(1.01,.99)}
+    74% {transform:translateY(-3.5%) rotate(0deg)  scale(.985,1.02)}
+    100%{transform:translateY(0)    rotate(-2.4deg) scale(1,1)}}
+  /* footfall shadow throbs in time with the steps */
+  .sprite.walking .shadow{animation:shwalk .46s steps(60) infinite}
+  @keyframes shwalk{0%,50%,100%{transform:scale(1)}24%,74%{transform:scale(.82)}}
   .sprite.walking .legA{animation:legA .38s ease-in-out infinite alternate}
   .sprite.walking .legB{animation:legB .38s ease-in-out infinite alternate}
   .sprite.walking .torso{animation:bob .38s ease-in-out infinite alternate}
@@ -1370,44 +1380,57 @@ const EZONES={forest:['wolf','goblin','goblin'], lake:['slime'],
   mine:['skeleton','spider'], volcano:['minotaur'], grotto:['spider']};
 const LAKE={cx:42,cy:248,rx:40,ry:42};   // water blocks walking
 
-/* painted ground: grass, paths, water, zone tints — deterministic */
+/* textured tiled ground: grass blades, tonal tiles, dirt roads, water */
 function groundSVG(){
   let sd=7; const rnd=()=>{sd=(sd*16807)%2147483647; return sd/2147483647;};
-  let mott='';
-  for(let i=0;i<260;i++){const x=rnd()*400,y=rnd()*300,r=2+rnd()*6;
-    mott+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${rnd()<.5?'#5e8f46':'#74a656'}" opacity="${(.12+rnd()*.15).toFixed(2)}"/>`;}
+  // tonal grass tiles (a soft checker of green tones, tiny jitter)
+  let tiles='';
+  const T=8;
+  for(let gy=0;gy<300/T;gy++) for(let gx=0;gx<400/T;gx++){
+    const tone=['#5f9346','#6aa04f','#588c40','#65994a'][(gx+gy+((rnd()*2)|0))%4];
+    tiles+=`<rect x="${gx*T}" y="${gy*T}" width="${T}" height="${T}" fill="${tone}" opacity="${(.35+rnd()*.3).toFixed(2)}"/>`;
+  }
+  // fine grass-blade texture as a pattern
+  let blades='';
+  for(let i=0;i<12;i++){const x=(rnd()*4).toFixed(1),y=(4-rnd()*3).toFixed(1),h=(1.4+rnd()*1.8).toFixed(1);
+    blades+=`<path d="M${x} 4 q0.3 -${h} 0 -${h}" stroke="#4f8038" stroke-width="0.4" fill="none" opacity=".5"/>`;}
+  // scattered flower dots for life
   let flow='';
-  for(let i=0;i<70;i++){const x=110+rnd()*180,y=200+rnd()*95;
-    flow+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="0.7" fill="${['#e8d8a0','#d87a9a','#f0f0f0'][i%3]}" opacity=".7"/>`;}
-  const path=(d)=>`<path d="${d}" fill="none" stroke="#8a7550" stroke-width="7" stroke-linecap="round" opacity=".85"/>
-    <path d="${d}" fill="none" stroke="#bda87c" stroke-width="4.6" stroke-linecap="round"/>`;
-  return `<svg viewBox="0 0 400 300" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+  for(let i=0;i<120;i++){const x=(rnd()*400).toFixed(1),y=(rnd()*300).toFixed(1);
+    flow+=`<circle cx="${x}" cy="${y}" r="0.8" fill="${['#e8d86a','#d87a9a','#f0f0f0','#c86ad8','#f0a040'][i%5]}" opacity=".8"/>`;}
+  const road=(d)=>`<path d="${d}" fill="none" stroke="#7a6444" stroke-width="8" stroke-linecap="round" opacity=".9"/>
+    <path d="${d}" fill="none" stroke="#a68d5e" stroke-width="5.2" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="#bda87c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 5" opacity=".6"/>`;
+  return `<svg viewBox="0 0 400 300" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;image-rendering:auto">
     <defs>
       <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#71a253"/><stop offset="1" stop-color="#5c8a43"/></linearGradient>
+        <stop offset="0" stop-color="#6a9d4d"/><stop offset="1" stop-color="#548040"/></linearGradient>
+      <pattern id="blade" width="4" height="4" patternUnits="userSpaceOnUse">${blades}</pattern>
       <radialGradient id="ash"><stop offset="0" stop-color="#4a3230"/><stop offset="1" stop-color="#4a323000"/></radialGradient>
-      <radialGradient id="sto"><stop offset="0" stop-color="#8a8f7a"/><stop offset="1" stop-color="#8a8f7a00"/></radialGradient>
+      <radialGradient id="sto"><stop offset="0" stop-color="#8f9078"/><stop offset="1" stop-color="#8f907800"/></radialGradient>
       <radialGradient id="dgr"><stop offset="0" stop-color="#3c6132"/><stop offset="1" stop-color="#3c613200"/></radialGradient>
-      <radialGradient id="wat"><stop offset="0" stop-color="#59b7e8"/><stop offset=".8" stop-color="#2f7fb8"/><stop offset="1" stop-color="#27618c"/></radialGradient>
-      <radialGradient id="glo"><stop offset="0" stop-color="#1e4a4a"/><stop offset="1" stop-color="#1e4a4a00"/></radialGradient>
+      <radialGradient id="wat"><stop offset="0" stop-color="#5fbdef"/><stop offset=".8" stop-color="#2f7fb8"/><stop offset="1" stop-color="#27618c"/></radialGradient>
+      <radialGradient id="glo"><stop offset="0" stop-color="#204e4e"/><stop offset="1" stop-color="#204e4e00"/></radialGradient>
+      <radialGradient id="vig"><stop offset=".7" stop-color="#00000000"/><stop offset="1" stop-color="#1a2a1055"/></radialGradient>
     </defs>
     <rect width="400" height="300" fill="url(#gr)"/>
-    ${mott}
-    <ellipse cx="210" cy="250" rx="130" ry="60" fill="url(#dgr)" opacity=".8"/>
-    <ellipse cx="180" cy="45" rx="70" ry="45" fill="url(#sto)" opacity=".55"/>
-    <ellipse cx="335" cy="65" rx="80" ry="60" fill="url(#sto)" opacity=".7"/>
-    <ellipse cx="360" cy="180" rx="60" ry="55" fill="#7a6a52" opacity=".55"/>
-    <ellipse cx="360" cy="265" rx="65" ry="50" fill="url(#ash)" opacity=".9"/>
-    <ellipse cx="20" cy="145" rx="45" ry="50" fill="url(#glo)" opacity=".85"/>
-    <ellipse cx="90" cy="155" rx="55" ry="60" fill="#8fae56" opacity=".35"/>
-    ${path('M200 150 Q160 150 100 150')} ${path('M200 150 Q200 200 170 240 Q150 270 120 280')}
-    ${path('M200 150 Q210 100 195 60')} ${path('M200 150 Q260 120 330 80')}
-    ${path('M200 150 Q280 160 355 180')} ${path('M355 180 Q365 220 362 262')}
-    ${path('M100 150 Q60 180 55 228')}
-    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx+4}" ry="${LAKE.ry+4}" fill="#cdbb90"/>
-    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx}" ry="${LAKE.ry}" fill="url(#wat)"/>
-    <ellipse cx="${LAKE.cx-8}" cy="${LAKE.cy-10}" rx="14" ry="7" fill="#8fd4f0" opacity=".5"/>
+    <g>${tiles}</g>
+    <rect width="400" height="300" fill="url(#blade)" opacity=".5"/>
+    <ellipse cx="210" cy="250" rx="140" ry="66" fill="url(#dgr)" opacity=".75"/>
+    <ellipse cx="180" cy="45" rx="72" ry="46" fill="url(#sto)" opacity=".6"/>
+    <ellipse cx="335" cy="65" rx="82" ry="62" fill="url(#sto)" opacity=".75"/>
+    <ellipse cx="360" cy="180" rx="62" ry="56" fill="#7a6a52" opacity=".6"/>
+    <ellipse cx="360" cy="265" rx="66" ry="52" fill="url(#ash)" opacity=".9"/>
+    <ellipse cx="20" cy="145" rx="46" ry="52" fill="url(#glo)" opacity=".85"/>
+    ${road('M200 150 Q160 150 100 150')} ${road('M200 150 Q200 200 170 240 Q150 270 120 280')}
+    ${road('M200 150 Q210 100 195 60')} ${road('M200 150 Q260 120 330 80')}
+    ${road('M200 150 Q280 160 355 180')} ${road('M355 180 Q365 220 362 262')}
+    ${road('M100 150 Q60 180 55 228')}
     ${flow}
+    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx+5}" ry="${LAKE.ry+5}" fill="#cdbb90"/>
+    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx}" ry="${LAKE.ry}" fill="url(#wat)"/>
+    <ellipse cx="${LAKE.cx-8}" cy="${LAKE.cy-10}" rx="15" ry="8" fill="#9fdcf5" opacity=".55"/>
+    <rect width="400" height="300" fill="url(#vig)"/>
   </svg>`;
 }
 // legacy per-screen tables retired by the seamless map:
