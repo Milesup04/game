@@ -336,7 +336,9 @@
         </div>
       </div>
       <div id="hotbar"></div>
-      <div id="wright"><span id="wloc"></span><br>Gold <b id="wgold">0</b> · <span style="opacity:.75">TAB inventory</span></div>
+      <div id="wright"><span id="wloc"></span><br>Gold <b id="wgold">0</b>
+        · <span style="cursor:pointer" onclick="showHelp()" title="Instructions">❓</span>
+        <span style="cursor:pointer" id="mutebtn" onclick="AUDIO.toggle()" title="Sound on/off (M)">🔊</span></div>
     </div>
 
     <!-- inventory (Tab) -->
@@ -375,6 +377,9 @@
       <div class="card">
         <h1>VALEGENDS</h1>
         <div class="sub">Rekindle the Sunwell. Choose your hero.</div>
+        <div class="btnbar" style="margin-top:0;margin-bottom:1vh">
+          <button class="big" onclick="showHelp()">📖 Instructions — How to Play</button>
+        </div>
         <div class="grid" id="heroGrid"></div>
       </div>
     </div>
@@ -532,8 +537,9 @@ function newGame(heroId){
   document.body.classList.add('imgmode');   // painted panels are the scene
   document.body.classList.add('walkmode');  // free-roam engine on
   $('pick').classList.remove('on');
-  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}<br><span style="opacity:.8">Walk with WASD · E interact · Tab inventory</span>`, 4200);
+  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}<br><span style="opacity:.8">Walk with WASD · E interact · Tab inventory · ❓ for help</span>`, 4200);
   if(!E2.raf) E2.raf=requestAnimationFrame(tick);
+  AUDIO.start();   // browsers allow audio after this click
 }
 
 /* =====================================================================
@@ -946,6 +952,194 @@ function drawQuest(){
 function allGathered(){return has('iron')&&has('sulfur')&&has('page');}
 
 /* =====================================================================
+   7a2) INSTRUCTIONS — the How-to-Play screen (menu button + ❓ in HUD)
+   ===================================================================== */
+function showHelp(){
+  openInfo(`<h1 style="font-size:1.8vw">📖 How to Play Valegends</h1>
+    <div class="row" style="align-items:flex-start;gap:2vw">
+      <div style="flex:1" class="kv">
+        <h2 style="text-align:left">🎯 Your Goal</h2>
+        The valley's <b>Sunwell</b> has gone dark. Speak to <b>the Mayor</b> in the
+        Town Hall (north of the Village Square) to begin. Gather
+        <b>Iron Ore</b> from the mine, <b>Sunstone</b> from Ashpeak Volcano and a
+        <b>Chronicle Page</b> from the Ancient Library — then activate the
+        <b>Portal Ruin</b> to rekindle the Sunwell and win.
+        <h2 style="text-align:left;margin-top:1vh">🗺️ Exploring</h2>
+        Walk to the <b>edge of the screen</b> (glowing arrows) to travel to the
+        next area. Villagers with a <b>!</b> have side quests with real rewards —
+        boots that save energy, lucky fishing, more health.
+        Walk over glinting items to pick them up. Sell spare loot to the
+        <b>Trader</b> in the Village Square and buy food and potions.
+        <h2 style="text-align:left;margin-top:1vh">⚡ Survival</h2>
+        Travelling and working drains <b>energy</b> (blue). At zero, your
+        <b>health</b> (red) starts to fall! Eat food from your hotbar, cook at
+        camps, or rest at the <b>Village Inn</b> to recover.
+      </div>
+      <div style="flex:0 0 38%" class="kv">
+        <h2 style="text-align:left">🎮 Controls</h2>
+        <b>WASD / Arrows</b> — walk<br>
+        <b>E</b> or <b>Space</b> — talk · interact · gather<br>
+        <b>Tab</b> — open / close inventory<br>
+        <b>Click item</b> (in inventory) — add / remove from hotbar<br>
+        <b>1–5</b> or click slot — use hotbar item<br>
+        <b>F</b> — quick-eat best food<br>
+        <b>I</b> — hero sheet &nbsp;·&nbsp; <b>M</b> — sound on/off<br>
+        <b>Esc</b> — close windows
+      </div>
+    </div>
+    <div class="btnbar"><button class="big" onclick="closeInfo()">Got it — let's play!</button></div>`);
+}
+
+/* =====================================================================
+   7a3) AUDIO — all generated live with WebAudio: an original, gentle
+        generative melody that changes mood by region, plus layered
+        ambient sound per location (birds, water, wind, fire, drips).
+        No audio files needed. M or the 🔊 button toggles sound.
+   ===================================================================== */
+const AUDIO={ctx:null,on:true,timers:[],amb:[],zone:null};
+AUDIO.start=function(){
+  if(AUDIO.ctx) return;
+  const C=new (window.AudioContext||window.webkitAudioContext)();
+  AUDIO.ctx=C; C.resume();
+  AUDIO.master=C.createGain(); AUDIO.master.gain.value=.3; AUDIO.master.connect(C.destination);
+  // gentle echo for space
+  AUDIO.dly=C.createDelay(1); AUDIO.dly.delayTime.value=.32;
+  const fb=C.createGain(); fb.gain.value=.32;
+  const wet=C.createGain(); wet.gain.value=.22;
+  AUDIO.dly.connect(fb); fb.connect(AUDIO.dly); AUDIO.dly.connect(wet); wet.connect(AUDIO.master);
+  AUDIO.mus=C.createGain(); AUDIO.mus.gain.value=.55; AUDIO.mus.connect(AUDIO.master); AUDIO.mus.connect(AUDIO.dly);
+  AUDIO.ambG=C.createGain(); AUDIO.ambG.gain.value=.8; AUDIO.ambG.connect(AUDIO.master);
+  // shared noise buffer for wind/water/fire
+  const len=2*C.sampleRate, buf=C.createBuffer(1,len,C.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  AUDIO.noise=buf;
+  AUDIO.setLocation(S.loc);
+  AUDIO.step=0; AUDIO.mi=3; musicTick();
+};
+AUDIO.toggle=function(){
+  AUDIO.on=!AUDIO.on;
+  if(AUDIO.ctx) AUDIO.master.gain.setTargetAtTime(AUDIO.on?.3:0,AUDIO.ctx.currentTime,.1);
+  const b=$('mutebtn'); if(b)b.textContent=AUDIO.on?'🔊':'🔇';
+  toast(AUDIO.on?'Sound <b>on</b>':'Sound <b>off</b>',900);
+};
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+// music zones: scale for the melody, chord roots for the pad, pace + feel
+const MZONE={
+  village:{locs:['square','hall','inn','temple','market','smithy','gate'],
+    scale:[60,62,64,67,69,72,74,76], chords:[[48,55,64],[45,52,60],[41,48,57],[43,50,59]],
+    beat:.62, rest:.35, type:'triangle', vel:.16, padv:.05},
+  wild:{locs:['forest','clearing','lake','waterfall','vantage','trail','bridge'],
+    scale:[62,64,66,69,71,74,76], chords:[[50,57,66],[47,54,62],[43,50,59],[45,52,61]],
+    beat:.75, rest:.45, type:'sine', vel:.15, padv:.05},
+  dark:{locs:['cave','mine','ruin','library','cemetery'],
+    scale:[57,60,62,64,67,69], chords:[[45,52,60],[40,47,55]],
+    beat:1.05, rest:.6, type:'sine', vel:.12, padv:.04},
+  fire:{locs:['volcano'],
+    scale:[50,53,55,57,60], chords:[[38,45,53]],
+    beat:1.1, rest:.6, type:'sawtooth', vel:.05, padv:.03},
+  magic:{locs:['portal'],
+    scale:[72,74,76,79,81,84,86], chords:[[48,55,62,67]],
+    beat:.85, rest:.5, type:'sine', vel:.12, padv:.05},
+};
+function zoneOf(loc){ for(const z in MZONE) if(MZONE[z].locs.includes(loc)) return z; return 'village'; }
+function pluck(m,vel,dur,type){
+  const C=AUDIO.ctx,t=C.currentTime;
+  const o=C.createOscillator(),g=C.createGain();
+  o.type=type; o.frequency.value=mtof(m);
+  g.gain.setValueAtTime(vel,t); g.gain.exponentialRampToValueAtTime(.0008,t+dur);
+  o.connect(g); g.connect(AUDIO.mus); o.start(t); o.stop(t+dur+.05);
+}
+function pad(ch,vel,dur){
+  const C=AUDIO.ctx,t=C.currentTime;
+  ch.forEach(m=>{const o=C.createOscillator(),g=C.createGain();
+    o.type='sine'; o.frequency.value=mtof(m);
+    g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(vel,t+dur*.3);
+    g.gain.linearRampToValueAtTime(.0001,t+dur);
+    o.connect(g); g.connect(AUDIO.mus); o.start(t); o.stop(t+dur+.1);});
+}
+function musicTick(){
+  if(!AUDIO.ctx) return;
+  const z=MZONE[zoneOf(S?S.loc:'square')];
+  // original generative tune: a random walk over the zone's scale
+  if(AUDIO.step%8===0) pad(z.chords[(AUDIO.step/8)%z.chords.length], z.padv, z.beat*8);
+  if(Math.random()>z.rest){
+    AUDIO.mi=Math.max(0,Math.min(z.scale.length-1, AUDIO.mi+[-2,-1,-1,1,1,1,2][Math.floor(Math.random()*7)]));
+    pluck(z.scale[AUDIO.mi], z.vel, z.beat*1.8, z.type);
+    if(Math.random()<.22) setTimeout(()=>AUDIO.ctx&&pluck(z.scale[AUDIO.mi]+12,z.vel*.4,z.beat,z.type), z.beat*500);
+  }
+  AUDIO.step++;
+  AUDIO.mtimer=setTimeout(musicTick, MZONE[zoneOf(S?S.loc:'square')].beat*1000);
+}
+/* ---- ambience layers ---- */
+function ambNoise(freq,q,gain,lfoRate,lfoDepth){
+  const C=AUDIO.ctx;
+  const src=C.createBufferSource(); src.buffer=AUDIO.noise; src.loop=true;
+  const f=C.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=q;
+  const g=C.createGain(); g.gain.value=gain;
+  src.connect(f); f.connect(g); g.connect(AUDIO.ambG); src.start();
+  let lfo=null,lg=null;
+  if(lfoRate){ lfo=C.createOscillator(); lg=C.createGain();
+    lfo.frequency.value=lfoRate; lg.gain.value=lfoDepth;
+    lfo.connect(lg); lg.connect(g.gain); lfo.start(); }
+  return {stop(){try{src.stop();lfo&&lfo.stop();}catch(e){} [src,f,g,lg].forEach(n=>n&&n.disconnect&&n.disconnect());}};
+}
+function ambTimer(fn,min,max){
+  let alive=true;
+  (function next(){ if(!alive)return;
+    AUDIO.timers.push(setTimeout(()=>{ if(!alive)return; fn(); next(); },(min+Math.random()*(max-min))*1000)); })();
+  return {stop(){alive=false;}};
+}
+function chirp(){ const C=AUDIO.ctx,t=C.currentTime;
+  for(let i=0;i<1+Math.floor(Math.random()*3);i++){
+    const o=C.createOscillator(),g=C.createGain(),t0=t+i*.14;
+    o.type='sine'; const f=2400+Math.random()*1600;
+    o.frequency.setValueAtTime(f,t0); o.frequency.linearRampToValueAtTime(f+500,t0+.05);
+    o.frequency.linearRampToValueAtTime(f-300,t0+.11);
+    g.gain.setValueAtTime(.0001,t0); g.gain.linearRampToValueAtTime(.05,t0+.02);
+    g.gain.linearRampToValueAtTime(.0001,t0+.12);
+    o.connect(g); g.connect(AUDIO.ambG); o.start(t0); o.stop(t0+.15);} }
+function drip(){ const C=AUDIO.ctx,t=C.currentTime;
+  const o=C.createOscillator(),g=C.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(900+Math.random()*500,t);
+  o.frequency.exponentialRampToValueAtTime(280,t+.14);
+  g.gain.setValueAtTime(.06,t); g.gain.exponentialRampToValueAtTime(.0008,t+.35);
+  o.connect(g); g.connect(AUDIO.ambG); g.connect(AUDIO.dly); o.start(t); o.stop(t+.4); }
+function crackle(){ const C=AUDIO.ctx,t=C.currentTime;
+  const src=C.createBufferSource(); src.buffer=AUDIO.noise;
+  src.playbackRate.value=.6+Math.random()*1.6;
+  const f=C.createBiquadFilter(); f.type='bandpass'; f.frequency.value=1500+Math.random()*2500; f.Q.value=2;
+  const g=C.createGain(); g.gain.setValueAtTime(.05+Math.random()*.05,t);
+  g.gain.exponentialRampToValueAtTime(.0008,t+.05+Math.random()*.06);
+  src.connect(f); f.connect(g); g.connect(AUDIO.ambG); src.start(t); src.stop(t+.15); }
+// which layers play where (tweak freely)
+const AMB={
+  square:['birds'], hall:[], inn:[], temple:[], market:['birds'], smithy:['fire'],
+  gate:['birds'], cemetery:['windq'],
+  forest:['birds','windq'], clearing:['fire','birdsq'], lake:['water','birdsq'],
+  waterfall:['waterbig'], cave:['drips','windq'], mine:['fire','drips'],
+  bridge:['wind','waterq'], trail:['wind'], vantage:['wind','birdsq'],
+  volcano:['firebig','windq'], ruin:['windq','drips'], library:['dripsq'], portal:['windq','drips'],
+};
+AUDIO.setLocation=function(loc){
+  if(!AUDIO.ctx) return;
+  AUDIO.amb.forEach(a=>a.stop()); AUDIO.amb=[];
+  AUDIO.timers.forEach(t=>clearTimeout(t)); AUDIO.timers=[];
+  (AMB[loc]||[]).forEach(k=>{
+    if(k==='birds') AUDIO.amb.push(ambTimer(chirp,2,6));
+    if(k==='birdsq') AUDIO.amb.push(ambTimer(chirp,5,12));
+    if(k==='water') AUDIO.amb.push(ambNoise(500,1.2,.05,.4,.02));
+    if(k==='waterq') AUDIO.amb.push(ambNoise(500,1.2,.025,.4,.012));
+    if(k==='waterbig') AUDIO.amb.push(ambNoise(800,.8,.11,.25,.03));
+    if(k==='wind') AUDIO.amb.push(ambNoise(220,.7,.05,.15,.03));
+    if(k==='windq') AUDIO.amb.push(ambNoise(220,.7,.028,.12,.016));
+    if(k==='fire'){ AUDIO.amb.push(ambNoise(1600,1.5,.02,0,0)); AUDIO.amb.push(ambTimer(crackle,.12,.5)); }
+    if(k==='firebig'){ AUDIO.amb.push(ambNoise(900,.9,.05,0,0)); AUDIO.amb.push(ambTimer(crackle,.08,.3)); }
+    if(k==='drips') AUDIO.amb.push(ambTimer(drip,2.5,7));
+    if(k==='dripsq') AUDIO.amb.push(ambTimer(drip,6,14));
+  });
+};
+
+/* =====================================================================
    7b) FREE-ROAM ENGINE — walk around inside each painted scene.
        Player + NPC sprites, ground items, hotspots, edge exits.
    ===================================================================== */
@@ -1140,6 +1334,7 @@ function transition(dir){
   setTimeout(()=>{
     S.loc=to; spend(cost);
     if(S.hero.id==='monk')S.sta=Math.min(S.maxsta,S.sta+3);
+    AUDIO.setLocation(to);   // swap ambient sound layers for the new area
     // enter from the opposite edge
     if(dir==='w')S.px=97; else if(dir==='e')S.px=3;
     else if(dir==='n'){S.py=BAND.bot;S.px=Math.max(4,Math.min(96,S.px));}
@@ -1493,11 +1688,11 @@ function heroInfo(){
    ===================================================================== */
 const MOVE_KEYS=['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'];
 addEventListener('keydown',e=>{
-  if($('pick').classList.contains('on')) return;
   const k=e.key.toLowerCase();
-  if(k==='tab'){ e.preventDefault();
-    if(!$('info').classList.contains('on')) toggleInv(); return; }
+  // let Esc/Enter close the Instructions even on the start menu
   if($('info').classList.contains('on')){ if(k==='escape'||k==='enter') closeInfo(); return; }
+  if($('pick').classList.contains('on')) return;
+  if(k==='tab'){ e.preventDefault(); toggleInv(); return; }
   if($('inv').classList.contains('on')){ if(k==='escape') toggleInv(false); return; }
   const walk=document.body.classList.contains('walkmode');
   if(walk && MOVE_KEYS.includes(k)){ e.preventDefault(); E2.keys.add(k); return; }
@@ -1510,6 +1705,7 @@ addEventListener('keydown',e=>{
   if(k==='e'||k===' '){ e.preventDefault(); walk?interact():doAction(); }
   else if(k==='f') eat();
   else if(k==='i') heroInfo();
+  else if(k==='m') AUDIO.toggle();
   else if(['1','2','3','4','5'].includes(k)) useSlot(+k-1);
 });
 addEventListener('keyup',e=>{ E2.keys.delete(e.key.toLowerCase()); });
