@@ -307,6 +307,44 @@
   #ep.show{opacity:1}
   #ep .k{color:var(--gold-bright)}
 
+  /* ---------- vendor shop windows ---------- */
+  .shopwrap{display:flex;gap:1.4vw;align-items:flex-start;min-width:56vw}
+  .shopside{flex:0 0 24%;text-align:center}
+  .shopside img{width:80%;max-height:30vh;object-fit:contain;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
+  .shopname{font-size:1.3vw;font-weight:900;color:var(--gold-bright);letter-spacing:.5px;margin-top:.6vh}
+  .shoprole{font-size:.85vw;color:#cdc4ae;opacity:.9}
+  .shopgold{margin-top:1vh;background:rgba(20,16,8,.7);border:1px solid #5a4a2a;border-radius:20px;
+    padding:.4vh .9vw;font-size:.9vw;display:inline-block}
+  .shopgold b{color:var(--gold-bright)}
+  .shopmain{flex:1;min-width:0}
+  .shoph{font-size:1vw;font-weight:800;color:var(--gold);letter-spacing:.6px;
+    border-bottom:1px solid #4a4436;padding-bottom:.4vh;margin:.6vh 0 .8vh}
+  .wares{display:grid;grid-template-columns:repeat(3,1fr);gap:.7vw}
+  .ware{position:relative;background:linear-gradient(#242028,#1a171d);border:2px solid #453d2c;
+    border-radius:10px;padding:.9vh .7vw .8vh;text-align:center;
+    box-shadow:0 3px 8px rgba(0,0,0,.4),0 1px 0 rgba(255,255,255,.05) inset;
+    transition:border-color .12s,transform .1s}
+  .ware:hover{border-color:var(--gold);transform:translateY(-2px)}
+  .ware .wi{font-size:2vw;line-height:1.2;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+  .ware .wn{font-size:.85vw;font-weight:800;color:#f0e6cf;margin-top:.2vh}
+  .ware .wd{font-size:.68vw;color:#b8b0a0;min-height:2.2em;line-height:1.3;margin-top:.2vh}
+  .ware .wb{margin-top:.5vh;background:linear-gradient(#4a3f22,#2f2712);color:var(--gold-bright);
+    border:2px solid #000;border-radius:6px;padding:.3vh 1vw;font-size:.8vw;font-weight:800;cursor:pointer;width:90%}
+  .ware .wb:hover{filter:brightness(1.25)}
+  .ware .wb:disabled{opacity:.45;cursor:default}
+  .ware.owned{border-color:#4a7a4a}
+  .ware.owned::after{content:"OWNED";position:absolute;top:5px;right:7px;font-size:.6vw;
+    color:#7fe07a;font-weight:900;letter-spacing:.5px}
+  .sellrow{display:flex;align-items:center;gap:.6vw;background:#1c1920;border:1px solid #3a3428;
+    border-radius:8px;padding:.4vh .7vw;margin-bottom:.4vh}
+  .sellrow .si{font-size:1.3vw}
+  .sellrow .sn{flex:1;font-size:.85vw;color:#e8e0cf}
+  .sellrow .sp{font-size:.8vw;color:var(--gold-bright);font-weight:800}
+  .sellrow button{background:linear-gradient(#3b3630,#242019);color:#f0e6cf;border:2px solid #000;
+    border-radius:6px;padding:.25vh .8vw;font-size:.75vw;font-weight:800;cursor:pointer}
+  .sellrow button:hover{filter:brightness(1.2)}
+
   /* inventory (Tab) */
   #inv .card{min-width:52%}
   #invGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:.6vw;margin-top:1vh}
@@ -511,6 +549,7 @@ const ITEMS = {
   iron:{name:'Iron Ore'}, sulfur:{name:'Sunstone'}, page:{name:'Chronicle Page'},
   crystal:{name:'Glow Crystal', food:0, sta:24},
   potion:{name:'Healing Potion', food:55, sta:15},
+  tonic:{name:'Verdant Tonic', food:0, sta:200},
 };
 
 /* =====================================================================
@@ -1294,22 +1333,34 @@ const OBJ=[
   {i:'berrybush',x:254,y:282,h:8,r:0, act:'forage',prompt:'to Gather Berries'},
   {i:'cabin',x:292,y:232,h:19,r:9},
   // — Old Cemetery —
-  {i:'shrine',x:168,y:52,h:15,r:6, act:'grave',prompt:'to Pay Respects'},
+  {i:'altar',x:168,y:52,h:14,r:6, act:'grave',prompt:'to Pay Respects'},
   {i:'belltower',x:202,y:42,h:24,r:8},{i:'roses',x:156,y:66,h:8,r:0},
+  {i:'roses',x:214,y:64,h:7,r:0},
   // — Ancient Ruins —
   {i:'pylon',x:348,y:66,h:26,r:10, act:'portal',prompt:'to Activate Portal'},
-  {i:'obelisk',x:318,y:88,h:20,r:5},{i:'ruinarch',x:372,y:98,h:18,r:8},
-  {i:'altar',x:298,y:58,h:13,r:6},
+  {i:'ruinarch',x:318,y:88,h:16,r:7},{i:'ruinarch',x:372,y:98,h:18,r:8},
   {i:'font',x:340,y:102,h:13,r:5, act:'chronicle',prompt:'to Read Chronicle'},
   // — Iron Quarry —
   {i:'ruinarch',x:372,y:178,h:19,r:8, act:'mine',prompt:'to Mine Iron'},
-  {i:'obelisk',x:336,y:196,h:17,r:5},
+  {i:'cart',x:336,y:196,h:13,r:5},
   // — Ashpeak Field —
   {i:'altar',x:366,y:268,h:14,r:6, act:'sulfur',prompt:'to Gather Sunstone'},
   // — Glow Grotto —
   {i:'glowshroom',x:22,y:150,h:12,r:0, act:'glow',prompt:'to Gather Crystal'},
   {i:'glowshroom',x:30,y:166,h:9,r:0},{i:'fantasytree',x:12,y:132,h:17,r:6},
 ];
+// bounty of the valley: pickable fruit bushes + orchard trees everywhere
+[[132,222],[188,246],[236,270],[276,252],[118,268],[164,282],[298,268],
+ [72,146],[112,128],[96,196],[140,96],[246,86],[286,146],[302,118],
+ [58,196],[86,258],[336,120],[352,240]].forEach(p=>OBJ.push(
+  {i:'berrybush',x:p[0],y:p[1],h:8,r:0, act:'forage',prompt:'to Pick Fruit'}));
+[[76,164],[124,110],[204,224],[262,236],[292,96],[60,120]].forEach(p=>OBJ.push(
+  {i:'fruittrees',x:p[0],y:p[1],h:18,r:6, act:'forage',prompt:'to Pick Fruit'}));
+// extra scatter so the valley feels planted
+[[104,238],'oak',[224,290],'oak',[150,252],'willow',[314,206],'fantasytree',
+ [244,120],'oak',[64,92],'willow'].forEach((v,i,arr)=>{
+  if(i%2===0) OBJ.push({i:arr[i+1],x:v[0],y:v[1],h:20,r:7});
+});
 const NPCPOS={mayor:[215,104], trader:[187,170], innkeeper:[236,126],
   smith:[157,178], alchemist:[222,172], fisher:[62,238],
   gravekeeper:[178,60], scholar:[344,96], hunter:[286,238]};
@@ -1530,7 +1581,11 @@ const ESPAWN={
 };
 const HERO_ATK={barbarian:16,golem:13,paladin:12,spellblade:12,assassin:11,
   monk:9,cleric:10,druid:9,bard:8,artificer:10,warlock:10,necromancer:10};
-function heroAtk(){return HERO_ATK[S.hero.id]||10;}
+function heroAtk(){
+  let a=HERO_ATK[S.hero.id]||10;
+  if(S.buff.atk1)a+=3; if(S.buff.atk2)a+=6;   // Blacksmith upgrades
+  return a;
+}
 function dmgNum(x,y,txt,cls){
   const el=document.createElement('div'); el.className='dmgnum '+cls;
   el.style.left=x+'%'; el.style.top=(y-14)+'%'; el.textContent=txt;
@@ -1707,9 +1762,11 @@ function tick(t){
     else{
       const ddx=o.tx-o.x, ddy=o.ty-o.y, d=Math.hypot(ddx*1.78,ddy);
       if(d<1){ o.wait-=dt;
-        if(o.wait<=0){ o.tx=Math.max(4,Math.min(96,o.home.x+(Math.random()*36-18)));
-          o.ty=Math.max(BAND.top+2,Math.min(BAND.bot,o.home.y+(Math.random()*14-7)));
-          o.wait=1.5+Math.random()*3; }
+        if(o.wait<=0){
+          // big roaming routes around their home so villagers spread out
+          o.tx=Math.max(6,Math.min(MAP.w-6,o.home.x+(Math.random()*64-32)));
+          o.ty=Math.max(8,Math.min(MAP.h-6,o.home.y+(Math.random()*36-18)));
+          o.wait=2+Math.random()*5; }
         o.el.classList.remove('walking');
       } else { const sp=7*dt; o.x+=ddx/d*sp*1.0; o.y+=ddy/d*sp*.6;
         if(Math.abs(ddx)>.3)o.f=ddx>0?1:-1; o.el.classList.add('walking'); }
@@ -1737,6 +1794,7 @@ function tick(t){
         let dmg=o.T.dmg;
         if(S.hero.id==='golem')dmg=Math.round(dmg*.7);
         if(S.hero.id==='paladin')dmg=Math.round(dmg*.85);
+        if(S.buff.shield)dmg=Math.round(dmg*.8);   // Iron Shield
         S.hp-=dmg; dmgNum(S.px,S.py,'-'+dmg,'hurt');
         drawWhud(); checkDeath();
       }
@@ -1834,7 +1892,7 @@ function interact(){
   const tgt=nearestTarget();
   if(!tgt)return;
   if(tgt.t==='npc'){ const n=tgt.o.n; n.trade?openTrade():talkNPC(tgt.o.id); }
-  else { (ACTIONS[tgt.o.act]||(()=>{}))(); drawQBadge(); }
+  else { (ACTIONS[tgt.o.act]||(()=>{}))(tgt.o); drawQBadge(); }
   drawWhud();
 }
 
@@ -1914,8 +1972,83 @@ function invClick(k){
   drawInv();drawWhud();
 }
 
-/* ---------- trader (buy AND sell, Zelda-style economy) ---------- */
-const SELL={iron:8,sulfur:8,crystal:10,fish:4,berries:2,bread:3,stew:9,potion:10};
+/* ---------- vendor shops: each merchant has their own styled window ---------- */
+const SHOPS={
+  smith:{title:'The Forge', role:'Blacksmith — weapons & armour', canSell:false, wares:[
+    {id:'atk1', ico:'🗡️', name:'Sharpened Blade', price:30, desc:'+3 attack damage, forever',
+      own:()=>S.buff.atk1, buy:()=>{S.buff.atk1=true;}},
+    {id:'atk2', ico:'⚔️', name:'Forged Edge', price:70, desc:'+6 more attack (needs Sharpened Blade)',
+      need:()=>S.buff.atk1, own:()=>S.buff.atk2, buy:()=>{S.buff.atk2=true;}},
+    {id:'shield', ico:'🛡️', name:'Iron Shield', price:45, desc:'Monsters hit you 20% softer',
+      own:()=>S.buff.shield, buy:()=>{S.buff.shield=true;}},
+  ]},
+  alchemist:{title:'Moonpetal Remedies', role:'Alchemist — tonics & potions', canSell:false, wares:[
+    {ico:'🧪', name:'Healing Potion', price:12, desc:'+55 health, +15 energy', item:'potion'},
+    {ico:'⚗️', name:'Verdant Tonic', price:15, desc:'Restores energy fully', item:'tonic'},
+    {ico:'🍲', name:'Hearty Stew', price:16, desc:'+55 health, +30 energy', item:'stew'},
+  ]},
+  innkeeper:{title:'The Gilded Hearth', role:'Innkeeper — meals for the road', canSell:false, wares:[
+    {ico:'🍞', name:'Fresh Bread', price:4, desc:'+20 health, +12 energy', item:'bread'},
+    {ico:'🐟', name:'Smoked Fish', price:8, desc:'+26 health, +10 energy', item:'fish'},
+    {ico:'🍲', name:'Hearty Stew', price:14, desc:'+55 health, +30 energy', item:'stew'},
+  ]},
+  trader:{title:'Wayfarer Goods', role:'Trader — buys anything, sells the basics', canSell:true, wares:[
+    {ico:'🍞', name:'Bread', price:5, desc:'+20 health, +12 energy', item:'bread'},
+    {ico:'🧪', name:'Healing Potion', price:14, desc:'+55 health, +15 energy', item:'potion'},
+    {ico:'🎣', name:'Fishing Snacks', price:9, desc:'Smoked fish for the road', item:'fish'},
+  ]},
+};
+function openVendor(id){
+  const sh=SHOPS[id]; if(!sh){openTrade();return;}
+  const n=NPCS[id];
+  let wares='';
+  sh.wares.forEach((wr,i)=>{
+    const owned=wr.own&&wr.own();
+    const locked=wr.need&&!wr.need();
+    wares+=`<div class="ware${owned?' owned':''}">
+      <div class="wi">${wr.ico}</div><div class="wn">${wr.name}</div>
+      <div class="wd">${locked?'Requires Sharpened Blade':wr.desc}</div>
+      <button class="wb" ${owned||locked?'disabled':''} onclick="vendorBuy('${id}',${i})">
+        ${owned?'Owned':wr.price+'g — Buy'}</button></div>`;
+  });
+  let sell='';
+  if(sh.canSell){
+    const rows=Object.keys(S.bag).filter(k=>SELL[k]&&S.bag[k]>0);
+    sell=`<div class="shoph">YOUR GOODS — SELL</div>`+(rows.length?rows.map(k=>
+      `<div class="sellrow"><span class="si">${ICON[k]||'❔'}</span>
+       <span class="sn">${ITEMS[k].name} ×${S.bag[k]}</span>
+       <span class="sp">${SELL[k]}g each</span>
+       <button onclick="vendorSell('${id}','${k}')">Sell 1</button>
+       ${S.bag[k]>1?`<button onclick="vendorSellAll('${id}','${k}')">Sell all</button>`:''}</div>`).join('')
+      :'<div class="sub" style="text-align:left">Nothing to sell yet — pick fruit, mine ore, catch fish…</div>');
+  }
+  openInfo(`<div class="shopwrap">
+    <div class="shopside">
+      <img src="${A('assets/npcs/'+id+'.png')}" alt="">
+      <div class="shopname">${sh.title}</div><div class="shoprole">${sh.role}</div>
+      <div class="shopgold">Your gold: <b>${S.gold}</b></div>
+    </div>
+    <div class="shopmain">
+      <div class="shoph">WARES</div>
+      <div class="wares">${wares}</div>
+      ${sell}
+      <div class="btnbar"><button class="big" onclick="closeInfo()">Leave</button></div>
+    </div></div>`);
+}
+function vendorBuy(id,i){
+  const wr=SHOPS[id].wares[i];
+  if(S.gold<wr.price){toast('Not enough gold.',1300);return;}
+  S.gold-=wr.price;
+  if(wr.item) give(wr.item,1); else wr.buy();
+  toast(`Bought <b>${wr.name}</b>!`,1400);
+  openVendor(id); drawWhud();
+}
+function vendorSell(id,k){ if(!has(k))return; take(k,1); S.gold+=SELL[k]; openVendor(id); drawWhud(); }
+function vendorSellAll(id,k){ const n=S.bag[k]||0; if(!n)return; take(k,n); S.gold+=SELL[k]*n;
+  toast(`Sold ${n} for <b>${SELL[k]*n}g</b>`,1400); openVendor(id); drawWhud(); }
+
+/* ---------- trader (legacy quick-trade, kept as fallback) ---------- */
+const SELL={iron:8,sulfur:8,crystal:10,fish:4,berries:1,bread:3,stew:9,potion:10};
 function openTrade(){
   const stock=[['bread',5],['fish',9],['stew',16],['potion',14]];
   const sellable=Object.keys(S.bag).filter(k=>SELL[k]&&S.bag[k]>0);
@@ -2039,14 +2172,18 @@ function heroFace(){
 function talkNPC(id){
   const n=NPCS[id];
   if(n.mainquest){ ACTIONS.mayor(); drawQBadge(); return; }
-  if(n.trade){ openTrade(); return; }
+  if(n.trade){ openVendor('trader'); return; }
   const st=S.quests[id];
+  // vendors with a finished (or unstarted) quest open their shop directly;
+  // during an active quest, talking handles the quest first
+  if(SHOPS[id] && st==='done'){ openVendor(id); return; }
   const face=`<div style="flex:0 0 26%">${heroFace()}</div>`;
+  const shopBtn = SHOPS[id]?`<button class="big" onclick="openVendor('${id}')">Browse Wares</button>`:'';
   if(!st){
     openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name} — “${n.title}”</h2>
       <div class="kv" style="margin-top:.6vh">${n.offer}</div></div></div>
       <div class="btnbar"><button class="big" onclick="acceptQuest('${id}')">Accept Quest</button>
-      <button class="big" onclick="closeInfo()">Not now</button></div>`);
+      ${shopBtn}<button class="big" onclick="closeInfo()">Not now</button></div>`);
   } else if(st==='active'){
     if(questMet(n)){
       n.reward(); S.quests[id]='done';
@@ -2057,7 +2194,7 @@ function talkNPC(id){
     } else {
       openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name}</h2>
         <div class="kv" style="margin-top:.6vh">${n.reminder}</div></div></div>
-        <div class="btnbar"><button class="big" onclick="closeInfo()">On it</button></div>`);
+        <div class="btnbar">${shopBtn}<button class="big" onclick="closeInfo()">On it</button></div>`);
     }
   } else {
     openInfo(`<div class="row">${face}<div><h2 style="text-align:left">${n.name}</h2>
@@ -2092,15 +2229,19 @@ const ACTIONS = {
     toast(`You rest at the inn. <b>Stamina full</b>, health restored.`,2000); render(); },
   pray(){ if(S.hero.id==='paladin'){S.hp=S.maxhp;toast('Consecration floods you — <b>fully healed</b>.',2000);}
     else {S.hp=Math.min(S.maxhp,S.hp+30);toast('A calm settles over you. <b>+30 health</b>.',1800);} render();},
-  shop(){ openShop(); },
+  shop(){ openVendor('alchemist'); },
   craft(){ let ok=true; if(S.hero.id!=='cleric'){ if(S.sta<10){toast('Too tired to craft.',1500);return;} S.sta-=10; }
     give('bread',1); toast('At the forge you craft supplies. <b>+1 Bread</b>.',1800); render(); },
   grave(){ S.flags.paidRespects=true;
     if(S.hero.id==='necromancer'){S.hp=Math.min(S.maxhp,S.hp+40);toast('The dead whisper to you. <b>+40 health</b>.',2000);render();}
     else toast('You pay your respects. The graves are quiet.',1800); },
   travel(){ toast('You pass through the gate into the wild valley.',1600); },
-  forage(){ let n= S.hero.id==='druid'?2:1; give('berries',n);
-    starve(); toast(`You gather <b>${n} Berries</b> from the bushes.`,1600); render(); },
+  forage(o){
+    if(o&&o.cdT&&o.cdT>Date.now()){toast('This bush is picked clean — it will regrow.',1400);return;}
+    let n= S.hero.id==='druid'?2:1; give('berries',n);
+    if(o){ o.cdT=Date.now()+60000; o.el.style.opacity='.55';
+      setTimeout(()=>{if(o.el)o.el.style.opacity='';},60000); }
+    starve(); toast(`You pick <b>${n} Berries</b>. (sells for 1g)`,1500); render(); },
   camp(){ S.sta=S.maxsta; S.hp=Math.min(S.maxhp,S.hp+20);
     toast('You build a shelter and rest by the fire. <b>Recovered.</b>',2000); render(); },
   fish(){ if(S.sta<8){toast('Too tired to fish.',1500);return;} S.sta-=8;
