@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Valegends</title>
+<style>
+  /* ============================================================
+     VALEGENDS — single-file story/survival game
+     - Exact HUD from the reference sheets:
+         heart + red health bar, lightning + blue stamina bar (top-left)
+         round compass minimap (top-right)
+         centered gold "Press [E] to ..." prompt
+         location label box (bottom)
+     - Scenes are drawn as layered SVG (illustrated-vector style).
+     - Every location & hero has an optional IMAGE SLOT: set `img`
+       to a file path/URL and it renders that instead of the SVG,
+       giving you painted-art quality with zero code changes.
+     ============================================================ */
+
+  :root{
+    --gold:#e8c15a; --gold-bright:#ffd873;
+    --panel:#2b2b33; --panel-2:#202026; --ink:#f4efe3;
+    --hp:#e5484d; --hp-dark:#5a1416;
+    --sta:#3aa0e0; --sta-dark:#123047;
+    --frame:#12141a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#05060a;color:var(--ink);
+    font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;overflow:hidden;
+    -webkit-font-smoothing:antialiased}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  /* 16:9 letterboxed viewport so it feels like a real game window */
+  #view{position:relative;width:min(100vw,177.78vh);height:min(56.25vw,100vh);
+    background:#0a0d14;overflow:hidden;box-shadow:0 0 60px #000 inset,0 0 0 2px #000}
+  #scene{position:absolute;inset:0}
+  #scene svg,#scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  #scene::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 38%, transparent 55%, rgba(6,8,14,.42) 100%),
+               linear-gradient(180deg, rgba(255,250,235,.10) 0%, transparent 22%, transparent 78%, rgba(6,8,14,.28) 100%)}
+  .fade{position:absolute;inset:0;background:#05060a;opacity:0;pointer-events:none;
+    transition:opacity .28s ease;z-index:40}
+  .fade.on{opacity:1}
+
+  /* ---------- HUD: health + stamina (top-left) ---------- */
+  #bars{position:absolute;left:2.2%;top:4%;z-index:20;width:34%;max-width:430px;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+  .bar-row{display:flex;align-items:center;gap:.6vw;margin-bottom:.7vh}
+  .icon{width:2.6vw;height:2.6vw;max-width:34px;max-height:34px;min-width:20px;min-height:20px;flex:0 0 auto}
+  .bar{position:relative;flex:1;height:2vw;max-height:26px;min-height:15px;
+    background:#1a1206;border:2px solid #000;border-radius:4px;overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,.15) inset}
+  .bar .fill{position:absolute;inset:0;width:100%;transform-origin:left;
+    transition:transform .35s cubic-bezier(.4,0,.2,1)}
+  .bar.hp .fill{background:linear-gradient(#ff6b6f,var(--hp) 55%,#b3282c)}
+  .bar.sta .fill{background:linear-gradient(#8fd0ff,var(--sta) 55%,#1f76b8)}
+  .bar .notch{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,0,0,.28)}
+
+  /* ---------- HUD: compass minimap (top-right) ---------- */
+  #compass{position:absolute;right:2.4%;top:5%;z-index:20;
+    width:12vw;height:12vw;max-width:150px;max-height:150px;min-width:88px;min-height:88px;
+    border-radius:50%;border:3px solid #b98b3e;background:#7fa86a;overflow:hidden;
+    box-shadow:0 0 0 3px #2c2016,0 6px 16px rgba(0,0,0,.6)}
+  #compass svg{position:absolute;inset:0}
+  .cdir{position:absolute;color:#fff;font-weight:700;font-size:.8vw;text-shadow:0 1px 2px #000;
+    min-font-size:9px}
+  .cdir.n{top:3%;left:50%;transform:translateX(-50%)}
+  .cdir.s{bottom:3%;left:50%;transform:translateX(-50%)}
+  .cdir.e{right:5%;top:50%;transform:translateY(-50%)}
+  .cdir.w{left:5%;top:50%;transform:translateY(-50%)}
+
+  /* ---------- centered "Press [E] to ..." prompt ---------- */
+  #prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);z-index:20;
+    font-size:1.7vw;font-weight:700;color:#fff;text-align:center;letter-spacing:.3px;
+    text-shadow:0 2px 5px rgba(0,0,0,.9),0 0 2px #000;opacity:0;transition:opacity .2s;
+    pointer-events:none;white-space:nowrap}
+  #prompt.show{opacity:1}
+  #prompt .k{color:var(--gold-bright)}
+
+  /* ---------- location label box (bottom center) ---------- */
+  #label{position:absolute;left:50%;bottom:5.5%;transform:translateX(-50%);z-index:20;
+    background:linear-gradient(#3a352b,#2a251d);color:var(--gold-bright);
+    font-weight:700;font-size:1.25vw;padding:.5vh 1.4vw;border-radius:7px;
+    border:2px solid #000;box-shadow:0 3px 8px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.12) inset;
+    letter-spacing:.4px;white-space:nowrap}
+
+  /* ---------- travel controls (bottom) ---------- */
+  #travel{position:absolute;left:2.4%;bottom:5%;z-index:20;display:flex;gap:.5vw;flex-wrap:wrap;max-width:44%}
+  .tbtn{background:linear-gradient(#3b3630,#242019);color:#f0e6cf;border:2px solid #000;
+    border-radius:6px;padding:.5vh .9vw;font-size:.95vw;font-weight:700;cursor:pointer;
+    box-shadow:0 2px 4px rgba(0,0,0,.5);transition:transform .08s,filter .12s}
+  .tbtn:hover{filter:brightness(1.18)}
+  .tbtn:active{transform:translateY(1px)}
+  .tbtn .dir{color:var(--gold);font-weight:800;margin-right:.35em}
+  #actions{position:absolute;right:2.4%;bottom:5%;z-index:20;display:flex;gap:.5vw}
+  .abtn{background:linear-gradient(#4a3f22,#2f2712);color:var(--gold-bright);
+    border:2px solid #000;border-radius:6px;padding:.5vh 1vw;font-size:.95vw;font-weight:800;
+    cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.5)}
+  .abtn:hover{filter:brightness(1.2)}
+  .abtn.hidden{display:none}
+
+  /* ---------- toast / story popup ---------- */
+  #toast{position:absolute;left:50%;top:16%;transform:translateX(-50%) translateY(-14px);
+    z-index:30;background:rgba(18,20,26,.94);border:2px solid var(--gold);border-radius:10px;
+    color:#f4efe3;padding:1.1vh 1.6vw;max-width:52%;font-size:1vw;text-align:center;
+    opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+    box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast b{color:var(--gold-bright)}
+
+  /* ---------- modal (hero select / info / dialogue) ---------- */
+  .modal{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    background:rgba(4,5,9,.82)}
+  .modal.on{display:flex}
+  .card{background:linear-gradient(#2a2a33,#1c1c22);border:2px solid var(--gold);border-radius:14px;
+    padding:2.2vh 2vw;max-width:80%;max-height:88%;overflow:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.7)}
+  .card h1{font-size:2.2vw;margin:.2em 0;color:var(--gold-bright);text-align:center;letter-spacing:1px}
+  .card h2{font-size:1.1vw;margin:.2em 0;color:var(--gold);text-align:center;font-weight:600}
+  .sub{text-align:center;opacity:.8;font-size:.95vw;margin-bottom:1.4vh}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1vw;margin-top:1.4vh}
+  .hero{background:#15161c;border:2px solid #3a3a44;border-radius:10px;padding:1vh .6vw;cursor:pointer;
+    text-align:center;transition:transform .1s,border-color .12s,background .12s}
+  .hero:hover{border-color:var(--gold);transform:translateY(-3px);background:#1b1d25}
+  .hero svg{width:100%;height:9vh;min-height:70px}
+  .hero .nm{font-weight:800;font-size:.95vw;margin-top:.4vh}
+  .hero .cl{font-size:.78vw;opacity:.8}
+  .hero .sk{font-size:.72vw;color:var(--gold);margin-top:.3vh;min-height:1.9em}
+  .row{display:flex;gap:1.4vw;align-items:center}
+  .btnbar{display:flex;gap:1vw;justify-content:center;margin-top:1.8vh}
+  .big{background:linear-gradient(#4a3f22,#2f2712);color:var(--gold-bright);border:2px solid #000;
+    border-radius:8px;padding:1vh 2vw;font-size:1.1vw;font-weight:800;cursor:pointer}
+  .big:hover{filter:brightness(1.2)}
+  .kv{font-size:1vw;line-height:1.7}
+  .kv b{color:var(--gold-bright)}
+  .bag{display:flex;flex-wrap:wrap;gap:.5vw;margin-top:.6vh}
+  .pill{background:#15161c;border:1px solid #3a3a44;border-radius:20px;padding:.3vh .9vw;font-size:.85vw}
+  .pill b{color:var(--gold-bright)}
+  .hint{position:absolute;right:2.4%;top:26%;z-index:20;font-size:.8vw;opacity:.55;text-align:right;
+    line-height:1.6;text-shadow:0 1px 2px #000}
+  .quest{position:absolute;left:2.2%;top:15%;z-index:20;font-size:.82vw;opacity:.9;
+    background:rgba(10,12,18,.5);border-left:3px solid var(--gold);padding:.4vh .7vw;border-radius:0 6px 6px 0;
+    max-width:30%;text-shadow:0 1px 2px #000}
+  .quest b{color:var(--gold-bright)}
+  .dead{color:#ff8a8a}
+  @media (max-width:640px){
+    #prompt{font-size:14px}.tbtn,.abtn{font-size:11px}.card h1{font-size:22px}
+    .hero .nm{font-size:11px}.hero .cl,.hero .sk{font-size:10px}.kv,.sub,.card h2{font-size:13px}
+    .cdir{font-size:9px}#label{font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="view">
+    <div id="scene"></div>
+
+    <!-- top-left bars -->
+    <div id="bars">
+      <div class="bar-row">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-10-9.3C.2 8 2 4.5 5.3 4.5c2 0 3.3 1.2 4.2 2.6C10.4 5.7 11.7 4.5 13.7 4.5 17 4.5 18.8 8 16 11.7 13.5 16.4 12 21 12 21z" fill="#e5484d" stroke="#7a1417" stroke-width="1.2"/></svg>
+        <div class="bar hp"><div class="fill" id="hpfill"></div></div>
+      </div>
+      <div class="bar-row">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-13h-6l1-7z" fill="#ffd23a" stroke="#8a6a10" stroke-width="1.1"/></svg>
+        <div class="bar sta"><div class="fill" id="stafill"></div></div>
+      </div>
+    </div>
+
+    <!-- top-right compass -->
+    <div id="compass">
+      <svg id="cmap" viewBox="0 0 100 100"></svg>
+      <span class="cdir n">N</span><span class="cdir s">S</span><span class="cdir e">E</span><span class="cdir w">W</span>
+    </div>
+
+    <div class="quest" id="quest"></div>
+    <div class="hint">WASD / arrows &nbsp;travel<br>E&nbsp; interact&nbsp;·&nbsp;F&nbsp; eat<br>I&nbsp; hero&nbsp;·&nbsp;M&nbsp; map</div>
+
+    <div id="prompt"></div>
+    <div id="label"></div>
+    <div id="toast"></div>
+
+    <div id="travel"></div>
+    <div id="actions">
+      <button class="abtn" id="eBtn">E</button>
+    </div>
+
+    <div class="fade" id="fade"></div>
+
+    <!-- hero select -->
+    <div class="modal on" id="pick">
+      <div class="card">
+        <h1>VALEGENDS</h1>
+        <div class="sub">Rekindle the Sunwell. Choose your hero.</div>
+        <div class="grid" id="heroGrid"></div>
+      </div>
+    </div>
+
+    <!-- info modal -->
+    <div class="modal" id="info"><div class="card" id="infoCard"></div></div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   1) HEROES  — 12 from the character sheet. Each has a signature skill.
+      Set `portrait:"path.png"` on any hero to use a real image instead
+      of the drawn SVG.
+   ===================================================================== */
+const HEROES = [
+  {id:'paladin', name:'Paladin', role:'Holy Knight', c1:'#e9e2cf', c2:'#c9a227', skin:'#e7b98f',
+    hp:130, sta:100, portrait:null,
+    skill:'Consecrate: heals to full when resting at the Temple.'},
+  {id:'druid', name:'Druid', role:'Grove Keeper', c1:'#4c7a3f', c2:'#8bbf5a', skin:'#d8b48c',
+    hp:100, sta:120, portrait:null,
+    skill:'Wildshaper: berries and foraging restore double.'},
+  {id:'cleric', name:'Cleric', role:'Anvil Disciple', c1:'#b7bcc4', c2:'#7f8894', skin:'#e7b98f',
+    hp:120, sta:100, portrait:null,
+    skill:'Holy Smith: crafting never fails and costs less stamina.'},
+  {id:'bard', name:'Bard', role:'Troubadour', c1:'#3f7a4c', c2:'#caa24a', skin:'#e6bd93',
+    hp:90, sta:130, portrait:null,
+    skill:'Minstrel: travel costs half stamina.'},
+  {id:'artificer', name:'Artificer', role:'Gadgeteer', c1:'#8a6a3a', c2:'#c98b4a', skin:'#e7c29a',
+    hp:100, sta:110, portrait:null,
+    skill:'Clockwork: mining and gathering yield an extra resource.'},
+  {id:'barbarian', name:'Barbarian', role:'Berserker', c1:'#5a7a4a', c2:'#7a4a2a', skin:'#8fae72',
+    hp:150, sta:110, portrait:null,
+    skill:'Fury: mines iron and sulfur twice as fast.'},
+  {id:'monk', name:'Monk', role:'Way of the Claw', c1:'#c98b4a', c2:'#b23a3a', skin:'#d8a86a',
+    hp:115, sta:125, portrait:null,
+    skill:'Inner Calm: stamina regenerates while you travel.'},
+  {id:'warlock', name:'Warlock', role:'Pact Keeper', c1:'#3a2a44', c2:'#7a3a8a', skin:'#b06a6a',
+    hp:95, sta:120, portrait:null,
+    skill:'Shadow Caster: reads ancient ruins without a key.'},
+  {id:'assassin', name:'Assassin', role:'Shadow Blade', c1:'#2b2b33', c2:'#5a5a66', skin:'#d8b48c',
+    hp:105, sta:120, portrait:null,
+    skill:'Silent Killer: picks any lock; hostile camps never wake.'},
+  {id:'spellblade', name:'Spellblade', role:'Blade-Weaver', c1:'#c9c2d8', c2:'#6ab0e0', skin:'#e7c29a',
+    hp:110, sta:115, portrait:null,
+    skill:'Duelist: takes no damage crossing dangerous ground.'},
+  {id:'golem', name:'Golem', role:'Iron Golem', c1:'#7f8894', c2:'#4a4f58', skin:'#9aa2ad',
+    hp:200, sta:80, portrait:null,
+    skill:'Tireless: never starves — stamina drains slowly.'},
+  {id:'necromancer', name:'Necromancer', role:'Skull Acolyte', c1:'#3a3a44', c2:'#8a8a6a', skin:'#c9b89a',
+    hp:100, sta:110, portrait:null,
+    skill:'Death Speaker: the Cemetery restores health instead of nothing.'},
+];
+
+/* =====================================================================
+   2) ITEMS  — food restores; resources complete the quest.
+   ===================================================================== */
+const ITEMS = {
+  berries:{name:'Berries', food:14, sta:8},
+  fish:{name:'Smoked Fish', food:26, sta:10},
+  stew:{name:'Hearty Stew', food:55, sta:30},
+  bread:{name:'Bread', food:20, sta:12},
+  iron:{name:'Iron Ore'}, sulfur:{name:'Sunstone'}, page:{name:'Chronicle Page'},
+  crystal:{name:'Glow Crystal', food:0, sta:24},
+};
+
+/* =====================================================================
+   3) WORLD  — connected locations. Each has:
+        biome  -> which scene painter to use
+        pal    -> palette overrides for that scene
+        prompt -> the gold "Press [E] to ..." text
+        act    -> what E does (function name in ACTIONS)
+        links  -> {dir:id} neighbours (n/s/e/w)
+        img    -> optional image path (overrides the SVG scene)
+        mx,my  -> position on the compass minimap (0..100)
+   ===================================================================== */
+const WORLD = {
+  square:{name:'Village Square', biome:'village', prompt:'to Examine Fountain', act:'examine',
+    links:{n:'hall', e:'inn', w:'market', s:'gate'}, mx:50, my:50, img:null},
+  hall:{name:'Town Hall', biome:'interior', pal:{wall:'#6b4a2f'}, prompt:'to Speak to Mayor', act:'mayor',
+    links:{s:'square'}, mx:50, my:34, img:null},
+  inn:{name:'Village Inn', biome:'interior', pal:{wall:'#7a5a3a'}, prompt:'to Rest', act:'rest',
+    links:{w:'square', e:'temple'}, mx:64, my:50, img:null},
+  temple:{name:'Temple', biome:'temple', prompt:'to Pray', act:'pray',
+    links:{w:'inn'}, mx:78, my:50, img:null},
+  market:{name:'Alchemist Market', biome:'village', pal:{sky:'#eab86a', warm:true}, prompt:'to Buy Potions', act:'shop',
+    links:{e:'square', n:'smithy', s:'cemetery'}, mx:36, my:50, img:null},
+  smithy:{name:'Blacksmith', biome:'interior', pal:{wall:'#3a2a22', forge:true}, prompt:'to Craft', act:'craft',
+    links:{s:'market'}, mx:36, my:34, img:null},
+  gate:{name:'Town Gate', biome:'gate', prompt:'to Leave Town', act:'travel',
+    links:{n:'square', s:'forest'}, mx:50, my:66, img:null},
+  cemetery:{name:'Cemetery', biome:'cemetery', prompt:'to Pay Respects', act:'grave',
+    links:{n:'market'}, mx:36, my:64, img:null},
+
+  forest:{name:'Forest', biome:'forest', prompt:'to Gather Berries', act:'forage',
+    links:{n:'gate', w:'lake', e:'mine', s:'clearing'}, mx:50, my:78, img:null},
+  clearing:{name:'Forest Clearing', biome:'clearing', prompt:'to Make Camp', act:'camp',
+    links:{n:'forest'}, mx:50, my:90, img:null},
+  lake:{name:'Crystal Lake', biome:'lake', prompt:'to Fish', act:'fish',
+    links:{e:'forest', w:'cave', n:'waterfall'}, mx:30, my:78, img:null},
+  waterfall:{name:'Waterfall Cove', biome:'waterfall', prompt:'to Search Cove', act:'search',
+    links:{s:'lake'}, mx:30, my:64, img:null},
+  cave:{name:'Glow Cave', biome:'cave', prompt:'to Gather Crystal', act:'glow',
+    links:{e:'lake'}, mx:16, my:78, img:null},
+  mine:{name:'Iron Mine', biome:'mine', prompt:'to Mine Iron', act:'mine',
+    links:{w:'forest', e:'bridge'}, mx:66, my:78, img:null},
+  bridge:{name:'Gorge Bridge', biome:'bridge', prompt:'to Cross', act:'cross',
+    links:{w:'mine', e:'trail'}, mx:80, my:78, img:null},
+  trail:{name:'Mountain Trail', biome:'mountain', prompt:'to Climb', act:'climb',
+    links:{w:'bridge', n:'vantage', s:'volcano', e:'ruin'}, mx:90, my:70, img:null},
+  vantage:{name:'Vantage Point', biome:'vantage', prompt:'to Look', act:'look',
+    links:{s:'trail'}, mx:90, my:54, img:null},
+  volcano:{name:'Ashpeak Volcano', biome:'volcano', prompt:'to Gather Sunstone', act:'sulfur',
+    links:{n:'trail'}, mx:90, my:88, img:null},
+  ruin:{name:'Ruin Entrance', biome:'ruin', prompt:'to Enter Ruin', act:'enterRuin',
+    links:{w:'trail', e:'library'}, mx:98, my:64, img:null},
+  library:{name:'Ancient Library', biome:'ruinlib', prompt:'to Read Chronicle', act:'chronicle',
+    links:{w:'ruin', s:'portal'}, mx:98, my:48, img:null},
+  portal:{name:'Portal Ruin', biome:'portal', prompt:'to Activate Portal', act:'portal',
+    links:{n:'library'}, mx:98, my:80, img:null},
+};
+
+/* =====================================================================
+   4) STATE
+   ===================================================================== */
+let S = null;
+const $ = id => document.getElementById(id);
+const scene=$('scene'), promptEl=$('prompt'), labelEl=$('label'), toastEl=$('toast');
+
+function newGame(heroId){
+  const h = HEROES.find(x=>x.id===heroId);
+  S = {
+    hero:h, maxhp:h.hp, hp:h.hp, maxsta:h.sta, sta:h.sta,
+    loc:'square', gold:20, bag:{berries:2, bread:1},
+    quest:0, // 0 not started, 1 gathering, 2 ready, 3 done
+    have:{iron:false, sulfur:false, page:false},
+    dead:false, ruinOpen:false,
+  };
+  $('pick').classList.remove('on');
+  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}`, 3600);
+}
+
+/* =====================================================================
+   5) SCENE PAINTER  — layered SVG per biome (illustrated-vector look).
+      Returns an <svg> string. Atmospheric perspective + gradients keep
+      it looking like art rather than flat blocks.
+   ===================================================================== */
+const W=1600,H=900;
+function svg(inner, defs=''){return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice"><defs>${defs}</defs>${inner}</svg>`;}
+function grad(id,stops,x1=0,y1=0,x2=0,y2=1){
+  return `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">`+
+    stops.map(s=>`<stop offset="${s[0]}" stop-color="${s[1]}"/>`).join('')+`</linearGradient>`;}
+function rgrad(id,stops){return `<radialGradient id="${id}">`+stops.map(s=>`<stop offset="${s[0]}" stop-color="${s[1]}"/>`).join('')+`</radialGradient>`;}
+
+// reusable pieces --------------------------------------------------------
+function sky(top,bot,sun){ // sun:{x,y,r,c}
+  let d=grad('sky',[[0,top],[1,bot]]);
+  let s='';
+  if(sun){ d+=rgrad('sun',[[0,sun.c||'#fff7d6'],[.5,(sun.c||'#ffe9a8')+'aa'],[1,'#ffffff00']]);
+    s=`<circle cx="${sun.x}" cy="${sun.y}" r="${sun.r}" fill="url(#sun)"/>`;}
+  return {defs:d, body:`<rect width="${W}" height="${H}" fill="url(#sky)"/>${s}`};
+}
+function clouds(y,op=.8){let s='';for(let i=0;i<4;i++){const cx=180+i*380+(i%2?60:0),cy=y+(i%2?40:0);
+  s+=`<g fill="#ffffff" opacity="${op*(.5+.12*i)}"><ellipse cx="${cx}" cy="${cy}" rx="120" ry="34"/><ellipse cx="${cx+90}" cy="${cy+8}" rx="90" ry="28"/><ellipse cx="${cx-80}" cy="${cy+10}" rx="80" ry="24"/></g>`;}
+  return s;}
+let _uid=0; const uid=()=>'g'+(++_uid);
+// shade a hex color toward black by f (0..1)
+function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.round(r*(1-f));g=Math.round(g*(1-f));b=Math.round(b*(1-f));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+function tint(hex,f){const n=parseInt(hex.slice(1),16);let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.round(r+(255-r)*f);g=Math.round(g+(255-g)*f);b=Math.round(b+(255-b)*f);
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+function ridge(baseY,amp,color,seed=1,op=1){ // layered mountains w/ gradient + haze
+  let p=`M0 ${H} L0 ${baseY}`;let x=0;let r=seed*97%50;
+  while(x<=W){const nx=x+120+ (r%140); const ny=baseY-amp*(0.4+ (Math.sin((x+seed*40)/220)+1)/2*0.6);
+    p+=` L${x} ${baseY} L${(x+nx)/2} ${ny}`; x=nx; r=(r*31+7)%97;}
+  p+=` L${W} ${baseY} L${W} ${H} Z`;
+  const id=uid();
+  return `<defs><linearGradient id="${id}" x1="0" y1="${baseY-amp}" x2="0" y2="${baseY+120}" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="${tint(color,.18)}"/><stop offset="1" stop-color="${shade(color,.28)}"/></linearGradient></defs>
+    <path d="${p}" fill="url(#${id})" opacity="${op}"/>`;
+}
+function snowcaps(baseY,amp,seed){let s='';let x=60;while(x<W){const ny=baseY-amp*.7;
+  s+=`<path d="M${x-40} ${ny+40} L${x} ${ny} L${x+40} ${ny+40} L${x+18} ${ny+34} L${x} ${ny+16} L${x-18} ${ny+34} Z" fill="#f4f7ff" opacity=".9"/>
+     <path d="M${x} ${ny} L${x+40} ${ny+40} L${x+18} ${ny+34} Z" fill="#c8d4e8" opacity=".7"/>`;x+=260;}return s;}
+function pine(x,y,s,c1,c2){const d=shade(c1,.3),l=tint(c1,.12);return `<g>
+  <rect x="${x-4*s}" y="${y}" width="${8*s}" height="${22*s}" fill="#4a3524"/>
+  <polygon points="${x},${y-70*s} ${x-30*s},${y} ${x+30*s},${y}" fill="${c2}"/>
+  <polygon points="${x},${y-70*s} ${x+30*s},${y} ${x},${y}" fill="${shade(c2,.22)}"/>
+  <polygon points="${x},${y-95*s} ${x-26*s},${y-40*s} ${x+26*s},${y-40*s}" fill="${c1}"/>
+  <polygon points="${x},${y-95*s} ${x+26*s},${y-40*s} ${x},${y-40*s}" fill="${d}"/>
+  <polygon points="${x},${y-118*s} ${x-20*s},${y-72*s} ${x+20*s},${y-72*s}" fill="${l}"/>
+  <polygon points="${x},${y-118*s} ${x+20*s},${y-72*s} ${x},${y-72*s}" fill="${c1}"/></g>`;}
+function tree(x,y,s,c1,c2){const id=uid();const d=shade(c1,.28);return `<g>
+  <defs><radialGradient id="${id}" cx=".4" cy=".35"><stop offset="0" stop-color="${tint(c1,.16)}"/>
+    <stop offset="1" stop-color="${d}"/></radialGradient></defs>
+  <rect x="${x-6*s}" y="${y-30*s}" width="${12*s}" height="${44*s}" rx="4" fill="#5a3d28"/>
+  <circle cx="${x}" cy="${y-56*s}" r="${44*s}" fill="${shade(c2,.15)}"/>
+  <circle cx="${x-34*s}" cy="${y-40*s}" r="${30*s}" fill="url(#${id})"/>
+  <circle cx="${x+34*s}" cy="${y-40*s}" r="${30*s}" fill="url(#${id})"/>
+  <circle cx="${x}" cy="${y-70*s}" r="${30*s}" fill="url(#${id})"/>
+  <circle cx="${x-12*s}" cy="${y-64*s}" r="${16*s}" fill="${tint(c1,.22)}" opacity=".6"/></g>`;}
+function ground(y,c){const id=uid();return `<defs><linearGradient id="${id}" x1="0" y1="${y}" x2="0" y2="${H}" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="${tint(c,.12)}"/><stop offset="1" stop-color="${shade(c,.22)}"/></linearGradient></defs>
+  <rect x="0" y="${y}" width="${W}" height="${H-y}" fill="url(#${id})"/>`;}
+function sparkle(x,y,n,c='#bfe9ff'){let s='';for(let i=0;i<n;i++){const px=x+((i*137)%300)-150,py=y+((i*89)%120);
+  s+=`<circle cx="${px}" cy="${py}" r="${1.5+ (i%3)}" fill="${c}" opacity="${.5+.4*((i%3)/3)}"/>`;}return s;}
+
+// biome painters ---------------------------------------------------------
+const PAINT = {
+  village(p){const sk=sky(p&&p.warm?'#f6c874':'#8fc6f2',p&&p.warm?'#f0d8a0':'#dfeefc',{x:1280,y:200,r:260});
+    return svg(
+      sk.body+clouds(180,.7)+
+      ridge(430,110,'#9fb27a',3,.9)+
+      ground(560,'#c9b487')+
+      // road
+      `<polygon points="700,900 900,900 760,560 720,560" fill="#b8a274"/>`+
+      // houses
+      house(220,560,180,'#c98b53','#7a4a2a')+house(1180,540,210,'#b6784a','#6b3f22')+
+      house(430,600,150,'#caa06a','#7a5a2a')+
+      // fountain
+      `<ellipse cx="800" cy="700" rx="130" ry="46" fill="#5a6a72"/><ellipse cx="800" cy="686" rx="120" ry="40" fill="#8fd0ef"/>
+       <rect x="788" y="600" width="24" height="90" fill="#8f9aa2"/><circle cx="800" cy="596" r="26" fill="#a7b2ba"/>`+
+      sparkle(800,676,10,'#d8f3ff')+
+      tree(1420,650,1.5,'#3f6b34','#4f8040')+tree(120,660,1.3,'#3f6b34','#4f8040'),
+      sk.defs);},
+  gate(p){const sk=sky('#8fc6f2','#dfeefc',{x:300,y:220,r:220});
+    return svg(sk.body+clouds(160,.7)+ridge(420,120,'#8fa06a',5,.9)+ground(560,'#c2ad7c')+
+      // wall + arch
+      `<rect x="80" y="360" width="1440" height="220" fill="#9a8f7a"/>
+       <rect x="80" y="330" width="1440" height="40" fill="#8a806c"/>
+       <path d="M660 580 L660 430 A140 140 0 0 1 940 430 L940 580 Z" fill="#2a2620"/>
+       <rect x="300" y="300" width="30" height="90" fill="#7a3030"/><polygon points="330,300 420,320 330,340" fill="#a33"/>
+       <rect x="1270" y="300" width="30" height="90" fill="#7a3030"/><polygon points="1300,300 1390,320 1300,340" fill="#a33"/>`+
+      tree(1450,640,1.4,'#3f6b34','#4f8040'),sk.defs);},
+  interior(p){const wall=(p&&p.wall)||'#6b4a2f';
+    let extra='';
+    if(p&&p.forge) extra=`<rect x="1120" y="470" width="360" height="240" rx="10" fill="#2a2018"/>
+      <rect x="1180" y="520" width="240" height="150" fill="#120c08"/>
+      ${rgradGlow('520,600',180)} <ellipse cx="1300" cy="640" rx="150" ry="90" fill="url(#glow)"/>
+      <rect x="300" y="640" width="220" height="70" rx="8" fill="#3a2a1e"/><rect x="330" y="560" width="150" height="80" fill="#5a4432"/>`;
+    else extra=`<rect x="220" y="560" width="300" height="200" rx="10" fill="#4a3524"/>
+      <rect x="1100" y="520" width="300" height="240" rx="10" fill="#3a2a1e"/>
+      <rect x="640" y="220" width="220" height="150" rx="8" fill="#2a2018"/><rect x="656" y="236" width="188" height="118" fill="#6a8fb0"/>`;
+    return svg(
+      grad0()+`<rect width="${W}" height="${H}" fill="${wall}"/>`+
+      `<rect y="0" width="${W}" height="120" fill="rgba(0,0,0,.28)"/>
+       <rect y="700" width="${W}" height="200" fill="#3a2a1c"/>
+       <g opacity=".18">${planks(wall)}</g>`+extra,
+      rgradGlow('520,600',180,'defs'));},
+  temple(p){const sk=sky('#2a2440','#5a4a6a',{x:800,y:240,r:200,c:'#ffe9c0'});
+    return svg(sk.body+ground(560,'#3a3350')+
+      `<polygon points="500,560 800,300 1100,560" fill="#4a4560"/>
+       <rect x="540" y="560" width="520" height="260" fill="#3a3550"/>
+       ${[600,720,840,960].map(x=>`<rect x="${x}" y="560" width="34" height="260" fill="#6a6480"/>`).join('')}
+       <rect x="740" y="620" width="120" height="200" fill="#241f38"/>
+       <circle cx="800" cy="700" r="30" fill="url(#hh)"/>`,
+      sk.defs+rgrad('hh',[[0,'#ffdca0'],[1,'#ffdca000']]));},
+  cemetery(p){const sk=sky('#5a6472','#9aa6b0',{x:1200,y:240,r:180,c:'#f0e8d8'});
+    let g='';for(let i=0;i<6;i++){const x=180+i*230+(i%2?40:0),y=600+(i%2?30:0);
+      g+=`<rect x="${x}" y="${y}" width="60" height="90" rx="28" fill="#8a8f96"/><rect x="${x+18}" y="${y+30}" width="24" height="60" fill="#6a6f76"/>`;}
+    return svg(sk.body+clouds(180,.5)+ridge(470,80,'#5a6a58',7,.8)+ground(560,'#6a7a5a')+g+
+      tree(150,660,1.4,'#3a4a34','#455540')+tree(1470,660,1.5,'#3a4a34','#455540')+
+      `<path d="M900 560 L900 470 A70 70 0 0 1 1040 470 L1040 560 Z" fill="#5a5f66"/>`,sk.defs);},
+  forest(p){const sk=sky('#7fb0e0','#cfe6f5',{x:1300,y:200,r:160});
+    let f='';const pos=[[180,720,1.6],[420,760,1.3],[1420,720,1.7],[1180,760,1.4],[760,780,1.2]];
+    pos.forEach(t=>f+=pine(t[0],t[1],t[2],'#2f5a2a','#3f6b34'));
+    return svg(sk.body+ridge(430,140,'#6a8f5a',2,.85)+ridge(500,90,'#4a6b3a',9,.9)+
+      ground(600,'#3f6b34')+`<polygon points="720,900 900,900 830,600 790,600" fill="#8a7a4a"/>`+
+      // berry bushes
+      `<g>${[600,980,300].map((x,i)=>`<circle cx="${x}" cy="${740+i*10}" r="46" fill="#2f5a2a"/>${[-20,0,20].map(dx=>`<circle cx="${x+dx}" cy="${730+i*10}" r="5" fill="#c0304a"/>`).join('')}`).join('')}</g>`+
+      f,sk.defs);},
+  clearing(p){const sk=sky('#2a3550','#5a6a80',{x:400,y:220,r:120,c:'#ffe9c0'});
+    return svg(sk.body+ridge(470,120,'#3a5540',3,.9)+ground(580,'#3a5a34')+
+      [180,340,1380,1220].map(x=>pine(x,760,1.4,'#28481f','#345a2a')).join('')+
+      // tent + campfire
+      `<polygon points="700,760 880,760 790,600" fill="#7a6a4a"/><polygon points="700,760 790,600 790,760" fill="#6a5a3a"/>
+       <ellipse cx="1000" cy="760" rx="70" ry="22" fill="#2a1f14"/>
+       ${logsFire(1000,745)}`,sk.defs+fireDefs());},
+  lake(p){const sk=sky('#5fa0e0','#bfe0f5',{x:1200,y:180,r:200});
+    return svg(sk.body+clouds(150,.7)+
+      snowRidge(360)+ridge(430,100,'#3f6b44',4,.8)+
+      `<rect y="560" width="${W}" height="340" fill="url(#water)"/>`+
+      sparkle(900,700,26,'#d8f3ff')+
+      // dock + boat
+      `<polygon points="120,640 620,660 620,700 120,690" fill="#7a5a3a"/>
+       <ellipse cx="700" cy="700" rx="120" ry="34" fill="#6a4a2a"/><ellipse cx="700" cy="690" rx="110" ry="26" fill="#8a6a44"/>
+       <rect x="150" y="600" width="30" height="40" fill="#8fd0ef"/>`+
+      pine(140,600,1.3,'#2f5a2a','#3f6b34'),
+      sk.defs+grad('water',[[0,'#3f9fd8'],[1,'#1f6fae']]));},
+  waterfall(p){const sk=sky('#6aa0d0','#cfe6f5',{x:400,y:180,r:140});
+    return svg(sk.body+ridge(300,220,'#4a5a5a',6,.9)+
+      `<rect x="700" y="140" width="200" height="520" fill="url(#fall)"/>
+       <ellipse cx="800" cy="680" rx="240" ry="60" fill="#8fd0ef"/>`+
+      sparkle(800,660,20,'#eafaff')+ground(720,'#3f6b34')+
+      [180,1420].map(x=>pine(x,720,1.4,'#2f5a2a','#3f6b34')).join(''),
+      sk.defs+grad('fall',[[0,'#eafaff'],[1,'#9fd0ef']]));},
+  cave(p){const sk={defs:'',body:`<rect width="${W}" height="${H}" fill="#0e1518"/>`};
+    return svg(sk.body+
+      `<path d="M0 0 H${W} V900 H0 Z" fill="#0e1518"/>
+       <path d="M200 0 Q800 120 1400 0 L1400 200 Q800 320 200 200 Z" fill="#1a2a2a" opacity=".6"/>
+       <ellipse cx="800" cy="640" rx="360" ry="120" fill="url(#pool)"/>`+
+      // glow mushrooms/crystals
+      [ [300,600],[520,650],[1100,600],[1280,660],[800,540] ].map(m=>
+        `<g>${rgradTag(m[0]+','+m[1])}<ellipse cx="${m[0]}" cy="${m[1]}" rx="70" ry="70" fill="url(#gm${m[0]})"/>
+         <polygon points="${m[0]},${m[1]-40} ${m[0]-14},${m[1]} ${m[0]+14},${m[1]}" fill="#7fe9ff"/></g>`).join('')+
+      sparkle(800,620,24,'#7fe9ff'),
+      grad('pool',[[0,'#2a6a7a'],[1,'#0e2a34']])+
+      [300,520,1100,1280,800].map(x=>rgrad('gm'+x,[[0,'#aef7ff'],[.4,'#5fd0e8aa'],[1,'#0000']])).join(''));},
+  mine(p){const sk={defs:'',body:`<rect width="${W}" height="${H}" fill="#20140e"/>`};
+    return svg(sk.body+
+      `<rect width="${W}" height="${H}" fill="#2a1c14"/>
+       <path d="M560 900 L560 360 A240 240 0 0 1 1040 360 L1040 900 Z" fill="#0a0603"/>
+       <rect x="540" y="340" width="40" height="560" fill="#5a3d28"/><rect x="1020" y="340" width="40" height="560" fill="#5a3d28"/>
+       <rect x="520" y="320" width="560" height="40" fill="#6a4a30"/>`+
+      // ore veins
+      [[300,600],[1300,640],[380,760]].map(o=>`<g>${[0,1,2,3].map(i=>`<polygon points="${o[0]+i*18},${o[1]} ${o[0]+i*18+12},${o[1]-16} ${o[0]+i*18+24},${o[1]}" fill="#c98b53"/>`).join('')}</g>`).join('')+
+      logsFire(200,780),fireDefs());},
+  bridge(p){const sk=sky('#7fb0e0','#cfe6f5',{x:1200,y:180,r:160});
+    return svg(sk.body+clouds(150,.6)+snowRidge(320)+
+      `<rect x="0" y="560" width="360" height="340" fill="#5a6a4a"/><rect x="1240" y="560" width="360" height="340" fill="#5a6a4a"/>
+       <rect x="360" y="560" width="880" height="200" fill="url(#gorge)"/>
+       <path d="M360 600 Q800 660 1240 600" stroke="#3a2a1a" stroke-width="10" fill="none"/>
+       <path d="M360 560 Q800 620 1240 560" stroke="#6a4a2a" stroke-width="14" fill="none"/>
+       ${[...Array(9)].map((_,i)=>`<rect x="${400+i*95}" y="590" width="60" height="14" fill="#7a5a3a" transform="rotate(${(i-4)*1.2} ${430+i*95} 597)"/>`).join('')}`+
+      pine(180,560,1.2,'#2f5a2a','#3f6b34'),
+      sk.defs+grad('gorge',[[0,'#3a5a6a'],[1,'#12222a']]));},
+  mountain(p){const sk=sky('#7fb0e0','#dfeef8',{x:1100,y:160,r:180});
+    return svg(sk.body+clouds(150,.7)+
+      snowRidge(300)+ridge(420,150,'#8a94a0',3,.9)+
+      `<path d="M0 900 L0 560 L400 620 L900 540 L1600 640 L1600 900 Z" fill="#7a6a5a"/>
+       <polygon points="700,560 760,600 720,640 660,600" fill="#f4f7ff" opacity=".8"/>`+
+      `<polygon points="1140,900 1300,900 1240,600 1200,600" fill="#8a7a6a"/>`, // trail
+      sk.defs);},
+  vantage(p){const sk=sky('#6fa8e0','#eaf4fb',{x:300,y:150,r:200});
+    return svg(sk.body+clouds(140,.8)+
+      snowRidge(280)+ridge(400,180,'#6a86a0',5,.85)+
+      `<rect y="620" width="${W}" height="280" fill="url(#vlake)"/>`+
+      sparkle(1000,720,16,'#eafaff')+
+      // town far below
+      `<g opacity=".8">${[900,960,1020,1080].map((x,i)=>`<rect x="${x}" y="${640+ (i%2?6:0)}" width="34" height="26" fill="#b6784a"/><polygon points="${x},640 ${x+17},624 ${x+34},640" fill="#7a4a2a"/>`).join('')}</g>`+
+      `<path d="M0 900 L0 700 L500 760 L500 900 Z" fill="#5a6a4a"/>`+pine(180,700,1.3,'#2f5a2a','#3f6b34'),
+      sk.defs+grad('vlake',[[0,'#4f9fd0'],[1,'#2f6f9e']]));},
+  volcano(p){const sk=sky('#5a2a20','#a85a30',{x:800,y:220,r:260,c:'#ffcf7a'});
+    return svg(sk.body+
+      ridge(520,180,'#3a1f16',3,.95)+
+      `<polygon points="600,520 800,220 1000,520 Z" fill="#2a1712"/>
+       <polygon points="740,300 800,220 860,300 830,340 800,300 770,340 Z" fill="#ff7a2a"/>
+       ${lava(800,280)}
+       <rect y="560" width="${W}" height="340" fill="#241410"/>`+
+      // lava cracks + sulfur
+      `<path d="M200 700 Q500 660 800 720 T1500 700" stroke="#ff6a2a" stroke-width="8" fill="none" opacity=".8"/>`+
+      [[300,700],[1200,720],[520,780]].map(o=>`<circle cx="${o[0]}" cy="${o[1]}" r="26" fill="#f4d03a"/><circle cx="${o[0]}" cy="${o[1]}" r="14" fill="#ffe97a"/>`).join(''),
+      sk.defs);},
+  ruin(p){const sk=sky('#3a4a4a','#6a7a6a',{x:400,y:200,r:150,c:'#e0e8d8'});
+    return svg(sk.body+ridge(430,120,'#4a5a4a',6,.85)+ground(560,'#5a6a4a')+
+      // vine-covered arch entrance
+      `<path d="M620 560 L620 380 A180 180 0 0 1 980 380 L980 560 Z" fill="#1a1512"/>
+       <rect x="580" y="360" width="60" height="220" fill="#7a8f6a"/><rect x="960" y="360" width="60" height="220" fill="#7a8f6a"/>
+       <rect x="560" y="330" width="480" height="50" fill="#8a9f7a"/>
+       ${[...Array(6)].map((_,i)=>`<path d="M${640+i*60} 340 q20 60 -10 120 t 20 100" stroke="#3f6b34" stroke-width="10" fill="none"/>`).join('')}`+
+      tree(180,660,1.4,'#3a5a34','#456540'),sk.defs);},
+  ruinlib(p){const sk={defs:'',body:`<rect width="${W}" height="${H}" fill="#241a12"/>`};
+    return svg(sk.body+
+      `<rect width="${W}" height="${H}" fill="#2a1f16"/>
+       <rect y="720" width="${W}" height="180" fill="#3a2a1c"/>
+       ${[120,420,1080,1380].map(x=>`<rect x="${x}" y="180" width="200" height="540" fill="#3a2a1e"/>${[...Array(6)].map((_,i)=>`<rect x="${x+16}" y="${210+i*82}" width="168" height="60" fill="#5a4432"/>${[...Array(7)].map((_,j)=>`<rect x="${x+22+j*23}" y="${214+i*82}" width="16" height="52" fill="${['#7a3030','#3a5a6a','#5a7a3a','#6a5a2a'][(i+j)%4]}"/>`).join('')}`).join('')}`).join('')}
+       <rect x="700" y="560" width="200" height="120" rx="8" fill="#5a4432"/>
+       <polygon points="700,560 800,520 900,560 800,600" fill="#e8dcc0"/>
+       <circle cx="800" cy="540" r="40" fill="url(#book)"/>`,
+      rgrad('book',[[0,'#bfe9ff'],[1,'#bfe9ff00']]));},
+  portal(p){const sk={defs:'',body:`<rect width="${W}" height="${H}" fill="#0e1424"/>`};
+    return svg(sk.body+
+      `<rect width="${W}" height="${H}" fill="url(#cav)"/>`+
+      // ice/cavern crystals
+      [[160,700],[1440,700],[300,760],[1300,760]].map(c=>`<polygon points="${c[0]},${c[1]-140} ${c[0]-40},${c[1]} ${c[0]+40},${c[1]}" fill="#7fb0d8" opacity=".7"/>`).join('')+
+      // the portal arch
+      `<path d="M620 720 L620 420 A180 180 0 0 1 980 420 L980 720 Z" fill="#1a2440"/>
+       <path d="M660 720 L660 440 A140 140 0 0 1 940 440 L940 720 Z" fill="url(#pg)"/>`+
+      sparkle(800,560,30,'#aef0ff'),
+      grad('cav',[[0,'#101a2e'],[1,'#0a0e1a']])+rgrad('pg',[[0,'#eafaff'],[.5,'#6ac0f0'],[1,'#2a6ad0']]));},
+};
+
+// small helpers for painters
+function grad0(){return '';}
+function planks(base){let s='';for(let i=0;i<14;i++){s+=`<rect x="0" y="${i*64}" width="${W}" height="2" fill="#000"/>`;}return s;}
+function house(x,y,w,c1,c2){const h=w*0.7;const id=uid(),rid=uid();return `<g>
+  <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${tint(c1,.12)}"/>
+    <stop offset="1" stop-color="${shade(c1,.24)}"/></linearGradient>
+    <linearGradient id="${rid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${tint(c2,.14)}"/>
+    <stop offset="1" stop-color="${shade(c2,.2)}"/></linearGradient></defs>
+  <rect x="${x}" y="${y-h}" width="${w}" height="${h}" fill="url(#${id})"/>
+  <polygon points="${x-14},${y-h} ${x+w/2},${y-h-w*0.5} ${x+w+14},${y-h}" fill="url(#${rid})"/>
+  <polygon points="${x+w/2},${y-h-w*0.5} ${x+w+14},${y-h} ${x+w/2},${y-h}" fill="${shade(c2,.32)}"/>
+  <rect x="${x+w*0.4}" y="${y-h*0.55}" width="${w*0.2}" height="${h*0.55}" fill="#3a2418"/>
+  <rect x="${x+w*0.4}" y="${y-h*0.55}" width="${w*0.2}" height="4" fill="#5a3d28"/>
+  <rect x="${x+w*0.12}" y="${y-h*0.8}" width="${w*0.18}" height="${w*0.18}" fill="#bfe6f7"/>
+  <rect x="${x+w*0.12}" y="${y-h*0.8}" width="${w*0.18}" height="${w*0.09}" fill="#8fd0ef"/>
+  <rect x="${x+w*0.7}" y="${y-h*0.8}" width="${w*0.18}" height="${w*0.18}" fill="#bfe6f7"/>
+  <rect x="${x+w*0.7}" y="${y-h*0.8}" width="${w*0.18}" height="${w*0.09}" fill="#8fd0ef"/></g>`;}
+function logsFire(x,y){return `<g><rect x="${x-40}" y="${y}" width="80" height="14" rx="6" fill="#6a4a2a" transform="rotate(12 ${x} ${y})"/>
+  <rect x="${x-40}" y="${y}" width="80" height="14" rx="6" fill="#5a3d24" transform="rotate(-16 ${x} ${y})"/>
+  <polygon points="${x},${y-70} ${x-26},${y} ${x+26},${y}" fill="url(#fire)"/>
+  <polygon points="${x},${y-44} ${x-14},${y} ${x+14},${y}" fill="#ffd23a"/></g>`;}
+function fireDefs(){return grad('fire',[[0,'#ffe97a'],[.5,'#ff8a2a'],[1,'#c0301a']]);}
+function rgradGlow(c,r,mode){const g=rgrad('glow',[[0,'#ffb85a'],[.5,'#ff7a2a99'],[1,'#0000']]);return mode==='defs'?g:g;}
+function rgradTag(c){return '';}
+function snowRidge(y){return ridge(y,180,'#8a94a0',3,.85)+snowcaps(y,180,3);}
+function lava(x,y){return `<ellipse cx="${x}" cy="${y}" rx="60" ry="18" fill="#ff7a2a"/><ellipse cx="${x}" cy="${y}" rx="34" ry="10" fill="#ffe97a"/>`;}
+
+/* =====================================================================
+   6) HERO PORTRAIT PAINTER (SVG) — distinct silhouette per class.
+   ===================================================================== */
+function heroSVG(h,full){
+  const s = full?1:1;
+  return `<svg viewBox="0 0 120 150">
+    <defs><linearGradient id="b${h.id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3f4a"/><stop offset="1" stop-color="#20232b"/></linearGradient></defs>
+    <rect width="120" height="150" rx="10" fill="url(#b${h.id})"/>
+    <!-- body -->
+    <path d="M35 150 Q35 96 60 92 Q85 96 85 150 Z" fill="${h.c1}"/>
+    <path d="M42 150 L42 110 L60 100 L78 110 L78 150 Z" fill="${h.c2}" opacity=".9"/>
+    <!-- arms -->
+    <rect x="26" y="98" width="12" height="40" rx="6" fill="${h.c1}"/>
+    <rect x="82" y="98" width="12" height="40" rx="6" fill="${h.c1}"/>
+    <!-- head -->
+    <circle cx="60" cy="70" r="20" fill="${h.skin}"/>
+    <path d="M40 66 Q60 40 80 66 Q80 52 60 48 Q40 52 40 66 Z" fill="${h.c2}"/>
+    <!-- signature prop -->
+    ${heroProp(h)}
+    <circle cx="53" cy="70" r="2.4" fill="#20232b"/><circle cx="67" cy="70" r="2.4" fill="#20232b"/>
+  </svg>`;
+}
+function heroProp(h){
+  switch(h.id){
+    case 'paladin': return `<polygon points="18,60 30,60 24,120" fill="#d8d0b8"/><rect x="16" y="58" width="16" height="8" fill="#c9a227"/>`;
+    case 'druid': return `<rect x="96" y="40" width="6" height="90" fill="#6a4a2a"/><circle cx="99" cy="40" r="10" fill="#7fe07a"/>`;
+    case 'cleric': return `<rect x="16" y="70" width="18" height="18" fill="#8f8f8f"/><rect x="20" y="88" width="10" height="30" fill="#6a5a3a"/>`;
+    case 'bard': return `<ellipse cx="96" cy="100" rx="14" ry="20" fill="#c98b4a"/><rect x="94" y="60" width="4" height="42" fill="#7a5a2a"/>`;
+    case 'artificer': return `<rect x="90" y="86" width="20" height="14" rx="3" fill="#8a6a3a"/><circle cx="100" cy="93" r="4" fill="#ffd23a"/>`;
+    case 'barbarian': return `<rect x="94" y="44" width="6" height="70" fill="#5a3d28"/><polygon points="88,44 112,44 100,66" fill="#b7bcc4"/>`;
+    case 'monk': return `<rect x="92" y="40" width="5" height="96" fill="#8a5a2a"/>`;
+    case 'warlock': return `<circle cx="98" cy="70" r="12" fill="#b06adf" opacity=".8"/>`;
+    case 'assassin': return `<polygon points="18,66 26,70 22,110" fill="#c9c9c9"/><polygon points="96,66 104,70 100,110" fill="#c9c9c9"/>`;
+    case 'spellblade': return `<polygon points="20,50 28,50 24,120" fill="#8fd0ff"/>`;
+    case 'golem': return `<rect x="14" y="86" width="16" height="40" rx="3" fill="#7f8894"/><rect x="90" y="86" width="16" height="40" rx="3" fill="#7f8894"/>`;
+    case 'necromancer': return `<rect x="94" y="46" width="5" height="80" fill="#5a5a4a"/><circle cx="96" cy="44" r="9" fill="#e8e2cf"/>`;
+    default: return '';
+  }
+}
+
+/* =====================================================================
+   7) RENDER
+   ===================================================================== */
+function render(){
+  const L = WORLD[S.loc];
+  // scene (image slot wins if provided)
+  if(L.img){ scene.innerHTML = `<img src="${L.img}" alt="${L.name}">`; }
+  else { scene.innerHTML = (PAINT[L.biome]||PAINT.village)(L.pal); }
+  // bars
+  $('hpfill').style.transform = `scaleX(${Math.max(0,S.hp/S.maxhp)})`;
+  $('stafill').style.transform = `scaleX(${Math.max(0,S.sta/S.maxsta)})`;
+  // prompt
+  const canAct = actionAvailable(L);
+  promptEl.innerHTML = `Press <span class="k">[E]</span> ${L.prompt}`;
+  promptEl.classList.toggle('show', !!canAct && !S.dead);
+  // label
+  labelEl.textContent = L.name;
+  // compass
+  drawCompass();
+  // travel buttons
+  const dirName={n:'North',s:'South',e:'East',w:'West'};
+  $('travel').innerHTML = Object.entries(L.links).map(([d,to])=>
+    `<button class="tbtn" onclick="go('${d}')"><span class="dir">${d.toUpperCase()}</span>${WORLD[to].name}</button>`).join('');
+  // quest tracker
+  drawQuest();
+  $('eBtn').classList.toggle('hidden', !canAct);
+}
+
+function drawCompass(){
+  const L=WORLD[S.loc];
+  let dots='';
+  for(const k in WORLD){const w=WORLD[k];const here=k===S.loc;
+    dots+=`<circle cx="${w.mx}" cy="${w.my}" r="${here?4:2.4}" fill="${here?'#3ad0ff':'#e8dcc0'}" stroke="#2a2016" stroke-width=".6"/>`;}
+  $('cmap').innerHTML = `<rect width="100" height="100" fill="#7fa86a"/>
+    <path d="M0 60 Q30 50 60 62 T100 58" stroke="#5a8f4a" stroke-width="6" fill="none" opacity=".5"/>
+    <path d="M20 0 Q40 40 30 100" stroke="#6a9a5a" stroke-width="4" fill="none" opacity=".4"/>
+    ${dots}
+    <polygon points="50,6 46,16 54,16" fill="#fff"/>`;
+}
+
+function drawQuest(){
+  const q=$('quest'); if(S.quest===0){q.innerHTML='';return;}
+  if(S.quest>=3){q.innerHTML=`<b>Quest complete.</b> The Sunwell is rekindled.`;return;}
+  const t = i => (S.have[i]?'✓':'○');
+  q.innerHTML=`<b>Rekindle the Sunwell</b><br>
+    ${t('iron')} Iron Ore &nbsp; ${t('sulfur')} Sunstone<br>
+    ${t('page')} Chronicle Page<br>
+    ${allGathered()?'→ Activate the <b>Portal Ruin</b>':'Gather all three.'}`;
+}
+function allGathered(){return S.have.iron&&S.have.sulfur&&S.have.page;}
+
+/* =====================================================================
+   8) MOVEMENT + TICK
+   ===================================================================== */
+function go(dir){
+  if(S.dead) return;
+  const L=WORLD[S.loc]; const to=L.links[dir]; if(!to) return;
+  let cost = 12;
+  if(S.hero.id==='bard') cost=6;
+  // fade transition
+  const f=$('fade'); f.classList.add('on');
+  setTimeout(()=>{
+    S.loc=to; spend(cost);
+    if(S.hero.id==='monk') S.sta=Math.min(S.maxsta,S.sta+4); // inner calm
+    render(); f.classList.remove('on');
+  },260);
+}
+function spend(sta){
+  S.sta -= sta;
+  if(S.sta<0){ // exhaustion drains health
+    if(S.hero.id!=='golem'){ S.hp += S.sta; } S.sta=0;
+    toast('You are <b>exhausted</b> — eat or rest.',1800);
+  }
+  checkDeath();
+}
+function starve(){ // called on some actions/time
+  const drain = S.hero.id==='golem'?1:3;
+  S.sta=Math.max(0,S.sta-drain);
+}
+function checkDeath(){
+  if(S.hp<=0 && !S.dead){ S.hp=0; S.dead=true; render();
+    openInfo(`<h1 class="dead">You have fallen</h1><div class="sub">${S.hero.name} could go no further.</div>
+      <div class="btnbar"><button class="big" onclick="location.reload()">Try Again</button></div>`);
+  }
+}
+
+/* =====================================================================
+   9) ACTIONS (what [E] does per location)
+   ===================================================================== */
+function actionAvailable(L){
+  if(L.act==='travel'||L.act==='look'||L.act==='examine'||L.act==='cross') return true;
+  if(L.act==='enterRuin' && S.ruinOpen) return false;
+  return true;
+}
+const ACTIONS = {
+  examine(){toast('The fountain water is cold and clear. A silver coin glints below.',2200); give('gold',2);},
+  mayor(){
+    if(S.quest===0){ S.quest=1;
+      openDialog('The Mayor','The Sunwell has gone dark and the valley is dying. Bring me <b>Iron Ore</b> from the mine, <b>Sunstone</b> from Ashpeak, and a <b>Chronicle Page</b> from the old library. Then activate the Portal Ruin — only that will rekindle it.');
+    } else if(S.quest<3 && !allGathered()){
+      openDialog('The Mayor','Have you the Iron, the Sunstone and the Chronicle Page? Not yet — hurry, the valley fades.');
+    } else if(S.quest<3){
+      openDialog('The Mayor','You have everything! Go to the <b>Portal Ruin</b> beyond the mountains and activate it. Rekindle the Sunwell!');
+    } else { openDialog('The Mayor','You saved us all. Valegends will remember your name.'); }
+  },
+  rest(){ let heal=45; if(S.hero.id==='paladin')heal=S.maxhp;
+    S.hp=Math.min(S.maxhp,S.hp+heal); S.sta=S.maxsta;
+    toast(`You rest at the inn. <b>Stamina full</b>, health restored.`,2000); render(); },
+  pray(){ if(S.hero.id==='paladin'){S.hp=S.maxhp;toast('Consecration floods you — <b>fully healed</b>.',2000);}
+    else {S.hp=Math.min(S.maxhp,S.hp+30);toast('A calm settles over you. <b>+30 health</b>.',1800);} render();},
+  shop(){ openShop(); },
+  craft(){ let ok=true; if(S.hero.id!=='cleric'){ if(S.sta<10){toast('Too tired to craft.',1500);return;} S.sta-=10; }
+    give('bread',1); toast('At the forge you craft supplies. <b>+1 Bread</b>.',1800); render(); },
+  grave(){ if(S.hero.id==='necromancer'){S.hp=Math.min(S.maxhp,S.hp+40);toast('The dead whisper to you. <b>+40 health</b>.',2000);render();}
+    else toast('You pay your respects. The graves are quiet.',1800); },
+  travel(){ toast('You pass through the gate into the wild valley.',1600); },
+  forage(){ let n= S.hero.id==='druid'?2:1; give('berries',n);
+    starve(); toast(`You gather <b>${n} Berries</b> from the bushes.`,1600); render(); },
+  camp(){ S.sta=S.maxsta; S.hp=Math.min(S.maxhp,S.hp+20);
+    toast('You build a shelter and rest by the fire. <b>Recovered.</b>',2000); render(); },
+  fish(){ if(S.sta<8){toast('Too tired to fish.',1500);return;} S.sta-=8; give('fish',1);
+    toast('A fish takes the line! <b>+1 Smoked Fish</b>.',1700); render(); },
+  search(){ give('gold',6); toast('You search the cove and find <b>6 gold</b> in the shipwreck.',1900); render(); },
+  glow(){ let n=S.hero.id==='artificer'?2:1; give('crystal',n);
+    toast(`You harvest <b>${n} Glow Crystal</b> — it hums with energy.`,1800); render(); },
+  mine(){ if(S.sta<14 && S.hero.id!=='barbarian'){toast('Too tired to mine.',1500);return;}
+    if(S.hero.id!=='barbarian') S.sta-=14;
+    if(!S.have.iron){ S.have.iron=true; questGrab(); toast('You strike a rich vein — <b>Iron Ore</b> obtained!',2200); }
+    else { give('gold',4); toast('You mine some ore and sell scraps. <b>+4 gold</b>.',1700); }
+    if(S.hero.id==='artificer'){give('gold',2);} render(); },
+  cross(){ let dmg = S.hero.id==='spellblade'?0:8;
+    if(dmg){S.hp-=dmg; toast(`The rope bridge sways — you slip. <b>-${dmg} health</b>.`,1900);}
+    else toast('You dance across the bridge without a misstep.',1700);
+    checkDeath(); render(); },
+  climb(){ if(S.sta<10){toast('Too tired to climb.',1500);return;} S.sta-=10;
+    toast('You climb the mountain trail. The air grows thin.',1700); render(); },
+  look(){ toast('From the vantage point the whole valley spreads below — the Sunwell flickers faintly.',2600); },
+  sulfur(){ if(S.sta<14 && S.hero.id!=='barbarian'){toast('The heat saps you — rest first.',1600);return;}
+    if(S.hero.id!=='barbarian') S.sta-=14;
+    if(!S.have.sulfur){ S.have.sulfur=true; questGrab(); toast('You gather glowing <b>Sunstone</b> from the vents!',2200); }
+    else { give('gold',3); toast('You collect some sulfur. <b>+3 gold</b>.',1600); } render(); },
+  enterRuin(){ if(S.hero.id==='warlock'||S.hero.id==='assassin'||S.have.page){ S.ruinOpen=true;
+      toast('The ancient door yields. The ruin opens before you.',2000); render(); }
+    else { openDialog('Sealed Door','Runes bind this door. Perhaps the <b>Library</b> beyond holds the way — or a Warlock could read these marks.'); S.ruinOpen=true; render(); } },
+  chronicle(){ if(!S.have.page){ S.have.page=true; questGrab();
+      toast('You copy a <b>Chronicle Page</b> — the rite to wake the Sunwell.',2400); }
+    else toast('The shelves hold a thousand tomes, all long dead languages.',1900); render(); },
+  portal(){ if(!allGathered()){ openDialog('Portal Ruin','The portal is dormant. You still need: '+
+        [['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!S.have[x[0]]).map(x=>x[1]).join(', ')+'.'); return; }
+    S.quest=3; win(); },
+};
+function questGrab(){ if(S.quest===1 && allGathered()) S.quest=2; }
+function doAction(){
+  if(S.dead) return; const L=WORLD[S.loc];
+  if(!actionAvailable(L)) return;
+  (ACTIONS[L.act]||(()=>{}))();
+  drawQuest();
+}
+
+function win(){
+  render();
+  openInfo(`<h1>The Sunwell Rekindled</h1>
+    <div class="sub">${S.hero.name} channels Iron, Sunstone and the ancient rite into the portal.
+    Light pours back into the valley of Valegends.</div>
+    <div class="btnbar"><button class="big" onclick="location.reload()">Play Again</button></div>`);
+}
+
+/* =====================================================================
+   10) INVENTORY / SHOP / DIALOG / INFO
+   ===================================================================== */
+function give(k,n=1){ if(k==='gold'){S.gold+=n;return;} S.bag[k]=(S.bag[k]||0)+n; }
+function eat(){
+  if(S.dead) return;
+  const order=['stew','fish','bread','berries','crystal'];
+  const k=order.find(x=>S.bag[x]>0);
+  if(!k){toast('Nothing to eat. Forage, fish or cook.',1600);return;}
+  S.bag[k]--; if(S.bag[k]<=0) delete S.bag[k];
+  const it=ITEMS[k]; S.hp=Math.min(S.maxhp,S.hp+(it.food||0)); S.sta=Math.min(S.maxsta,S.sta+(it.sta||0));
+  toast(`You eat <b>${it.name}</b>. ${it.food?('+'+it.food+' health '):''}${it.sta?('+'+it.sta+' stamina'):''}`,1700);
+  render();
+}
+function openShop(){
+  const stock=[['bread',6],['fish',10],['stew',18]];
+  openInfo(`<h1>Alchemist Market</h1><div class="sub">Gold: <b>${S.gold}</b></div>
+    <div class="kv">${stock.map(([k,c])=>`<div>${ITEMS[k].name} — <b>${c}g</b>
+      <button class="big" style="padding:.3vh 1vw;font-size:.9vw;margin-left:1vw" onclick="buy('${k}',${c})">Buy</button></div>`).join('')}</div>
+    <div class="bag">${bagPills()}</div>
+    <div class="btnbar"><button class="big" onclick="closeInfo()">Leave</button></div>`);
+}
+function buy(k,c){ if(S.gold<c){toast('Not enough gold.',1400);return;} S.gold-=c; give(k,1); openShop(); render(); }
+function bagPills(){
+  const p=Object.entries(S.bag).map(([k,n])=>`<span class="pill">${ITEMS[k]?ITEMS[k].name:k} <b>×${n}</b></span>`);
+  p.unshift(`<span class="pill">Gold <b>${S.gold}</b></span>`);
+  return p.join('');
+}
+function openDialog(who,text){
+  openInfo(`<div class="row"><div style="flex:0 0 26%">${heroSVG(S.hero,true)}</div>
+    <div><h2 style="text-align:left">${who}</h2><div class="kv" style="margin-top:.6vh">${text}</div></div></div>
+    <div class="btnbar"><button class="big" onclick="closeInfo()">Continue</button></div>`);
+}
+function openInfo(html){ $('infoCard').innerHTML=html; $('info').classList.add('on'); }
+function closeInfo(){ $('info').classList.remove('on'); }
+function heroInfo(){
+  const h=S.hero;
+  openInfo(`<div class="row"><div style="flex:0 0 30%">${heroSVG(h,true)}</div>
+    <div><h1 style="text-align:left">${h.name}</h1><h2 style="text-align:left">${h.role}</h2>
+    <div class="kv"><b>Health:</b> ${Math.round(S.hp)}/${S.maxhp} &nbsp; <b>Stamina:</b> ${Math.round(S.sta)}/${S.maxsta}<br>
+    <b>Skill:</b> ${h.skill}</div>
+    <div class="bag">${bagPills()}</div></div></div>
+    <div class="btnbar"><button class="big" onclick="closeInfo()">Close</button></div>`);
+}
+
+/* =====================================================================
+   11) INPUT + BOOT
+   ===================================================================== */
+addEventListener('keydown',e=>{
+  if($('pick').classList.contains('on')) return;
+  const k=e.key.toLowerCase();
+  if($('info').classList.contains('on')){ if(k==='escape'||k==='enter') closeInfo(); return; }
+  if(k==='w'||k==='arrowup') go('n');
+  else if(k==='s'||k==='arrowdown') go('s');
+  else if(k==='a'||k==='arrowleft') go('w');
+  else if(k==='d'||k==='arrowright') go('e');
+  else if(k==='e'||k===' ') doAction();
+  else if(k==='f') eat();
+  else if(k==='i') heroInfo();
+  else if(k==='m') toast('The compass (top-right) shows the whole valley — you are the blue dot.',2200);
+});
+$('eBtn').onclick=doAction;
+
+function toast(html,ms=2000){ toastEl.innerHTML=html; toastEl.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>toastEl.classList.remove('show'),ms); }
+
+// build hero picker
+$('heroGrid').innerHTML = HEROES.map(h=>`
+  <div class="hero" onclick="newGame('${h.id}')">
+    ${h.portrait?`<img src="${h.portrait}" style="width:100%;height:9vh;object-fit:contain">`:heroSVG(h)}
+    <div class="nm">${h.name}</div><div class="cl">${h.role}</div>
+    <div class="sk">${h.skill}</div>
+  </div>`).join('');
+
+// starvation over time (gentle survival pressure)
+setInterval(()=>{ if(S&&!S.dead && !$('info').classList.contains('on')){
+  const before=S.sta; starve();
+  if(S.sta<=0){ if(S.hero.id!=='golem'){S.hp-=2; checkDeath();} }
+  if(Math.abs(before-S.sta)>0) render();
+}}, 6000);
+</script>
+</body>
+</html>
