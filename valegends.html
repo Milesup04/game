@@ -1228,11 +1228,16 @@ function buildWorld(){
     el.textContent=ICON[it.k]||'✨';
     w.appendChild(el); E2.items.push({k:it.k,x:it.x,y:it.y,el,got:false});
   });
-  // NPC sprites at their home location
+  // NPC sprites at their home location — real art from the Champions sheet,
+  // drawn sprite as automatic fallback
   npcsAt(S.loc).forEach(([id,n])=>{
     const el=document.createElement('div'); el.className='sprite';
     const pal=n.pal||{c1:'#7a5a3a',c2:'#caa24a',skin:'#e7b98f',hair:'#5a3d28'};
-    el.innerHTML=spriteSVG(pal)+`<div class="shadow"></div><div class="ntag">${n.name}</div>`;
+    const fallback=spriteSVG(pal).replace(/"/g,'&quot;');
+    el.dataset.ar='1/2';
+    el.innerHTML=`<img class="pspr" src="assets/npcs/${id}.png"
+        onerror="this.closest('.sprite').dataset.ar='3/5';this.outerHTML='${fallback}'">`
+      +`<div class="shadow"></div><div class="ntag">${n.name}</div>`;
     w.appendChild(el);
     const home=n.pos||{x:30+Math.random()*40,y:70+Math.random()*18};
     E2.npcs.push({id,n,el,x:home.x,y:home.y,tx:home.x,ty:home.y,home,wait:1+Math.random()*2,f:1});
