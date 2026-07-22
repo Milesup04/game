@@ -33,7 +33,7 @@
   /* 16:9 letterboxed viewport so it feels like a real game window */
   #view{position:relative;width:min(100vw,177.78vh);height:min(56.25vw,100vh);
     background:#0a0d14;overflow:hidden;box-shadow:0 0 60px #000 inset,0 0 0 2px #000}
-  #scene{position:absolute;inset:0}
+  #scene{position:absolute;inset:0;will-change:transform;transform-origin:50% 76%}
   #scene svg,#scene img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   #scene::after{content:"";position:absolute;inset:0;pointer-events:none;
     background:radial-gradient(120% 90% at 50% 38%, transparent 55%, rgba(6,8,14,.42) 100%),
@@ -199,8 +199,37 @@
   body.walkmode #hud,body.walkmode #bars,body.walkmode #compass,body.walkmode #prompt,
   body.walkmode #label,body.walkmode .hint,body.walkmode .quest,
   body.walkmode #travel,body.walkmode #actions{display:none!important}
-  #world{position:absolute;inset:0;z-index:12;overflow:hidden;display:none}
+  #world{position:absolute;inset:0;z-index:12;overflow:visible;display:none;
+    will-change:transform;transform-origin:50% 76%}
   body.walkmode #world{display:block}
+
+  /* ---- atmosphere particles + mist (immersion layer) ---- */
+  .pt{position:absolute;pointer-events:none;border-radius:50%;
+    animation:ptFloat var(--dur) linear infinite}
+  @keyframes ptFloat{
+    0%{transform:translate(0,0) rotate(0deg);opacity:0}
+    12%{opacity:var(--op)}
+    88%{opacity:var(--op)}
+    100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot));opacity:0}}
+  .mist{position:absolute;pointer-events:none;border-radius:50%;
+    filter:blur(18px);animation:mistDrift var(--dur) ease-in-out infinite alternate}
+  @keyframes mistDrift{from{transform:translateX(-4%)}to{transform:translateX(4%)}}
+
+  /* ---- combat ---- */
+  .ebar{position:absolute;left:8%;right:8%;bottom:102%;height:7px;background:#180a0a;
+    border:1px solid #000;border-radius:3px;overflow:hidden;opacity:0;transition:opacity .2s}
+  .ebar.show{opacity:1}
+  .ebar .f{height:100%;background:linear-gradient(#ff6b6f,#c0301a);transform-origin:left;
+    transition:transform .18s}
+  .dmgnum{position:absolute;font-weight:900;font-size:1.3vw;pointer-events:none;z-index:1000;
+    text-shadow:0 2px 3px #000,0 0 2px #000;animation:dmgUp .8s ease-out forwards}
+  .dmgnum.hit{color:#ffd23a}.dmgnum.hurt{color:#ff5a5a}.dmgnum.crit{color:#ff9a2a;font-size:1.8vw}
+  @keyframes dmgUp{from{transform:translate(-50%,0);opacity:1}
+    to{transform:translate(-50%,-5vh);opacity:0}}
+  .sprite.atk{animation:atkLunge .22s ease-out}
+  @keyframes atkLunge{40%{margin-top:-1.2vh}100%{margin-top:0}}
+  .sprite.ehurt img,.sprite.ehurt svg{filter:brightness(2.2) saturate(.4)}
+  .sprite.edie{transition:opacity .5s,transform .5s;opacity:0!important}
   .sprite{position:absolute;transform-origin:50% 100%;pointer-events:none;
     filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
   .sprite svg{display:block;width:100%;height:100%}
@@ -394,6 +423,17 @@
 </div>
 
 <script>
+/* Single-file support: the build script fills this map with data-URIs of
+   every asset so the game runs from ONE html file with no folder needed. */
+window.ASSETS=null;//__ASSETS__
+function A(p){ return (window.ASSETS&&window.ASSETS[p])||p; }
+/* when a sprite image loads, adopt its natural proportions */
+function sprLoaded(img){
+  const el=img.closest('.sprite'); if(!el)return;
+  el.dataset.ar=img.naturalWidth+'/'+img.naturalHeight;
+  el.style.aspectRatio=el.dataset.ar;
+}
+
 /* =====================================================================
    1) HEROES  — 12 from the character sheet. Each has a signature skill.
       Set `portrait:"path.png"` on any hero to use a real image instead
@@ -865,7 +905,7 @@ function render(){
   // scene (image slot wins if provided); only repaint on scene change
   if(_paintedLoc!==S.loc){
     _paintedLoc=S.loc;
-    if(L.img){ scene.innerHTML = `<img src="${L.img}" alt="${L.name}">`; }
+    if(L.img){ scene.innerHTML = `<img src="${A(L.img)}" alt="${L.name}">`; }
     else { scene.innerHTML = (PAINT[L.biome]||PAINT.village)(L.pal); }
   }
   // bars
@@ -974,6 +1014,11 @@ function showHelp(){
         boots that save energy, lucky fishing, more health.
         Walk over glinting items to pick them up. Sell spare loot to the
         <b>Trader</b> in the Village Square and buy food and potions.
+        <h2 style="text-align:left;margin-top:1vh">⚔️ Combat</h2>
+        The wilds are dangerous — wolves, goblins, skeletons and worse prowl
+        beyond the town gate. Walk up to a monster and press <b>E</b> to strike.
+        They fight back, so watch your health — and beware the <b>Minotaur</b>
+        guarding Ashpeak Volcano. Slain enemies drop <b>gold</b>.
         <h2 style="text-align:left;margin-top:1vh">⚡ Survival</h2>
         Travelling and working drains <b>energy</b> (blue). At zero, your
         <b>health</b> (red) starts to fall! Eat food from your hotbar, cook at
@@ -1203,14 +1248,116 @@ function spriteSVG(c){ // c:{c1 body, c2 trim, skin, hair}
 }
 
 // engine state (not saved): DOM refs + live coords
-const E2 = {player:null, npcs:[], items:[], keys:new Set(), last:0, raf:0};
+const E2 = {player:null, npcs:[], items:[], enemies:[], keys:new Set(), last:0, raf:0,
+  cam:{x:0,y:0}, atkCd:0, hurtCd:0};
+
+/* ---------- camera: the scene is zoomed and pans with the player ---------- */
+const CAMZ=1.30;
+function updateCamera(dt){
+  const tx=Math.max(-10,Math.min(10,(S.px-50)*.34));
+  const ty=Math.max(-5,Math.min(5,(S.py-74)*.22));
+  const k=Math.min(1,dt*4.5);
+  E2.cam.x+=(tx-E2.cam.x)*k; E2.cam.y+=(ty-E2.cam.y)*k;
+  const tr=`scale(${CAMZ}) translate(${-E2.cam.x}%,${-E2.cam.y}%)`;
+  scene.style.transform=tr; $('world').style.transform=tr;
+}
+
+/* ---------- atmosphere particles per biome ---------- */
+const FX={
+  village:{n:12,mk:i=>fxDot('#fff8e0',2+Math.random()*2,.35)},
+  gate:{n:10,mk:i=>fxDot('#fff8e0',2+Math.random()*2,.3)},
+  forest:{n:16,mk:i=>Math.random()<.7?fxLeaf():fxDot('#eaffd0',2,.3)},
+  clearing:{n:16,mk:i=>Math.random()<.6?fxFirefly():fxLeaf()},
+  lake:{n:12,mk:i=>fxDot('#eafaff',2+Math.random()*2,.4)},
+  waterfall:{n:18,mk:i=>fxDot('#eafaff',2+Math.random()*3,.5)},
+  cave:{n:16,mk:i=>fxGlow('#7fe9ff')}, portal:{n:20,mk:i=>fxGlow('#aef0ff')},
+  mine:{n:12,mk:i=>Math.random()<.5?fxEmber():fxDot('#d8c8a8',2,.25)},
+  smithy:{n:12,mk:i=>fxEmber()}, volcano:{n:20,mk:i=>Math.random()<.6?fxEmber():fxAsh()},
+  trail:{n:10,mk:i=>fxDot('#ffffff',2,.3)}, vantage:{n:10,mk:i=>fxDot('#ffffff',2,.3)},
+  bridge:{n:10,mk:i=>fxDot('#eafaff',2,.3)},
+  cemetery:{n:10,mk:i=>fxDot('#c8d0c8',2.5,.22)}, ruin:{n:10,mk:i=>fxDot('#c8d0b8',2.5,.22)},
+  library:{n:8,mk:i=>fxDot('#e8d8b0',2,.25)}, hall:{n:6,mk:i=>fxDot('#e8d8b0',2,.2)},
+  inn:{n:6,mk:i=>fxDot('#ffe8c0',2,.2)}, temple:{n:10,mk:i=>fxDot('#ffe9c0',2.5,.3)},
+  market:{n:12,mk:i=>fxDot('#fff8e0',2,.3)},
+};
+function fxBase(w,h,extra){
+  const el=document.createElement('div'); el.className='pt';
+  el.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*90}%;width:${w}px;height:${h}px;`+
+    `--dur:${8+Math.random()*14}s;--dx:${(Math.random()*16-8)}vw;--dy:${(Math.random()*10-3)}vh;`+
+    `--rot:${Math.random()*360}deg;--op:${extra.op};animation-delay:-${Math.random()*12}s;`+extra.css;
+  return el;
+}
+function fxDot(c,s,op){return fxBase(s,s,{op,css:`background:${c};`});}
+function fxLeaf(){return fxBase(5+Math.random()*4,3+Math.random()*3,
+  {op:.55,css:`background:#5a8f3a;border-radius:60% 40% 60% 40%;--dy:${4+Math.random()*8}vh;`});}
+function fxFirefly(){return fxBase(3,3,{op:.9,css:`background:#ffe97a;box-shadow:0 0 8px 3px rgba(255,233,122,.6);`});}
+function fxGlow(c){return fxBase(3,3,{op:.8,css:`background:${c};box-shadow:0 0 9px 3px ${c}55;--dy:-${4+Math.random()*8}vh;`});}
+function fxEmber(){return fxBase(3,3,{op:.85,css:`background:#ff9a3a;box-shadow:0 0 7px 2px rgba(255,120,40,.55);--dy:-${6+Math.random()*10}vh;`});}
+function fxAsh(){return fxBase(3,3,{op:.4,css:`background:#9a9a9a;--dy:${6+Math.random()*8}vh;`});}
+function fxMist(w){
+  const el=document.createElement('div'); el.className='mist';
+  el.style.cssText=`left:${Math.random()*70-10}%;top:${45+Math.random()*35}%;width:${w}%;height:16%;`+
+    `background:radial-gradient(50% 50% at 50% 50%,rgba(255,255,255,.14),transparent 70%);`+
+    `--dur:${18+Math.random()*16}s;`;
+  return el;
+}
+function buildFX(w){
+  const biome=S.loc; const cfg=FX[biome];
+  if(cfg) for(let i=0;i<cfg.n;i++) w.appendChild(cfg.mk(i));
+  if(['lake','waterfall','cemetery','ruin','cave','portal','forest','vantage'].includes(biome))
+    for(let i=0;i<3;i++) w.appendChild(fxMist(30+Math.random()*25));
+}
+
+/* ---------- combat data ---------- */
+const ETYPES={
+  wolf:{name:'Wolf',hp:30,dmg:8,spd:10,aggro:26,gold:5,h:11},
+  goblin:{name:'Goblin',hp:26,dmg:6,spd:8.5,aggro:24,gold:7,h:12},
+  skeleton:{name:'Skeleton',hp:34,dmg:9,spd:7,aggro:22,gold:9,h:14},
+  zombie:{name:'Zombie',hp:46,dmg:10,spd:4.5,aggro:20,gold:10,h:14},
+  spider:{name:'Giant Spider',hp:28,dmg:7,spd:11,aggro:26,gold:7,h:10},
+  slime:{name:'Slime',hp:20,dmg:5,spd:5,aggro:18,gold:4,h:9},
+  bandit:{name:'Bandit',hp:42,dmg:10,spd:9,aggro:26,gold:15,h:14},
+  ghost:{name:'Ghost',hp:30,dmg:8,spd:8,aggro:24,gold:11,h:13},
+  ogre:{name:'Ogre',hp:70,dmg:14,spd:6,aggro:22,gold:20,h:17},
+  minotaur:{name:'Minotaur',hp:170,dmg:22,spd:7.5,aggro:30,gold:60,h:20,boss:true},
+};
+const ESPAWN={
+  forest:['wolf','goblin'], clearing:['goblin'], lake:['slime'],
+  cave:['spider','slime'], mine:['skeleton','spider'], bridge:['bandit'],
+  trail:['wolf','wolf'], volcano:['minotaur'], ruin:['skeleton','zombie'],
+  cemetery:['zombie','skeleton'], portal:['ghost'], waterfall:['slime'],
+};
+const HERO_ATK={barbarian:16,golem:13,paladin:12,spellblade:12,assassin:11,
+  monk:9,cleric:10,druid:9,bard:8,artificer:10,warlock:10,necromancer:10};
+function heroAtk(){return HERO_ATK[S.hero.id]||10;}
+function dmgNum(x,y,txt,cls){
+  const el=document.createElement('div'); el.className='dmgnum '+cls;
+  el.style.left=x+'%'; el.style.top=(y-14)+'%'; el.textContent=txt;
+  $('world').appendChild(el); setTimeout(()=>el.remove(),850);
+}
 
 function anyModal(){ return ['pick','info','inv'].some(id=>$(id).classList.contains('on')); }
 
 function buildWorld(){
   if(E2.builtLoc===S.loc && E2.player && E2.player.isConnected) return; // same scene: keep sprites live
   E2.builtLoc=S.loc;
-  const w=$('world'); w.innerHTML=''; E2.npcs=[]; E2.items=[];
+  const w=$('world'); w.innerHTML=''; E2.npcs=[]; E2.items=[]; E2.enemies=[];
+  buildFX(w);
+  // enemies for this area
+  (ESPAWN[S.loc]||[]).forEach(t=>{
+    const T=ETYPES[t];
+    const el=document.createElement('div'); el.className='sprite';
+    el.dataset.ar='1/1';
+    el.innerHTML=`<img class="pspr" src="${A('assets/enemies/'+t+'.png')}" onload="sprLoaded(this)">`
+      +`<div class="shadow"></div><div class="ebar"><div class="f"></div></div>`
+      +`<div class="ntag" style="border-color:rgba(229,72,77,.7);color:#ff9a9a">${T.name}</div>`;
+    w.appendChild(el);
+    // spawn away from the player entry point
+    let ex,ey; do{ ex=10+Math.random()*80; ey=BAND.top+4+Math.random()*(BAND.bot-BAND.top-6);}
+    while(dist2(S.px||50,S.py||84,ex,ey)<500);
+    E2.enemies.push({t,T,el,x:ex,y:ey,tx:ex,ty:ey,hp:T.hp,f:1,wait:1+Math.random()*2,
+      atkT:0,hurtT:0,dead:false});
+  });
   const L=WORLD[S.loc], R=ROAM[S.loc]||{};
   // exit arrows
   const pos={n:'left:50%;top:8%;transform:translateX(-50%)', s:'left:50%;bottom:9%;transform:translateX(-50%)',
@@ -1234,8 +1381,8 @@ function buildWorld(){
     const el=document.createElement('div'); el.className='sprite';
     const pal=n.pal||{c1:'#7a5a3a',c2:'#caa24a',skin:'#e7b98f',hair:'#5a3d28'};
     const fallback=spriteSVG(pal).replace(/"/g,'&quot;');
-    el.dataset.ar='1/2';
-    el.innerHTML=`<img class="pspr" src="assets/npcs/${id}.png"
+    el.dataset.ar='2/3';
+    el.innerHTML=`<img class="pspr" src="${A('assets/npcs/'+id+'.png')}" onload="sprLoaded(this)"
         onerror="this.closest('.sprite').dataset.ar='3/5';this.outerHTML='${fallback}'">`
       +`<div class="shadow"></div><div class="ntag">${n.name}</div>`;
     w.appendChild(el);
@@ -1246,8 +1393,8 @@ function buildWorld(){
   const el=document.createElement('div'); el.className='sprite';
   const set=HERO2SET[S.hero.id];
   if(set){
-    el.dataset.ar='1/2';
-    el.innerHTML=`<img class="pspr" id="pimg" src="${sprPath(set,'front')}"
+    el.dataset.ar='5/9';
+    el.innerHTML=`<img class="pspr" id="pimg" src="${A(sprPath(set,'front'))}" onload="sprLoaded(this)"
       onerror="this.closest('.sprite').dataset.ar='3/5';this.outerHTML=''">`
       +`<div class="shadow"></div>`;
     E2.pset=set; E2.ppose='front';
@@ -1256,11 +1403,14 @@ function buildWorld(){
     el.innerHTML=spriteSVG(hc)+`<div class="shadow"></div>`;
     E2.pset=null;
   }
+  el.dataset.h='19';           // the player reads larger than villagers
   w.appendChild(el);
   E2.player=el;
   if(S.px==null){S.px=50;S.py=84;}
   S.pf=S.pf||1;
   placeSprite(el,S.px,S.py,S.pf);
+  // apply per-enemy base heights
+  E2.enemies.forEach(o=>{o.el.dataset.h=o.T.h; placeSprite(o.el,o.x,o.y,o.f);});
 }
 
 // choose front / side / back art based on movement direction
@@ -1275,14 +1425,15 @@ function setPose(dx,dy){
   if(pose!==E2.ppose){
     E2.ppose=pose;
     const img=document.getElementById('pimg');
-    if(img) img.src=sprPath(E2.pset,pose);
+    if(img) img.src=A(sprPath(E2.pset,pose));
   }
 }
 
 function placeSprite(el,x,y,f){
-  const s=.5+.65*Math.max(0,Math.min(1,(y-BAND.top)/(BAND.bot-BAND.top)));
+  const s=.58+.58*Math.max(0,Math.min(1,(y-BAND.top)/(BAND.bot-BAND.top)));
+  const base=+(el.dataset.h||15);
   el.style.left=x+'%'; el.style.top=y+'%';
-  el.style.height=(15*s)+'%'; el.style.aspectRatio=el.dataset.ar||'3/5';
+  el.style.height=(base*s)+'%'; el.style.aspectRatio=el.dataset.ar||'3/5';
   el.style.transform=`translate(-50%,-100%) scaleX(${f})`;
   el.style.zIndex=Math.round(y*10);
 }
@@ -1337,8 +1488,80 @@ function tick(t){
     }
     placeSprite(o.el,o.x,o.y,o.f);
   });
+  // ---- enemy AI: wander, chase, strike ----
+  E2.atkCd=Math.max(0,E2.atkCd-dt);
+  E2.enemies.forEach(o=>{
+    if(o.dead) return;
+    o.atkT=Math.max(0,o.atkT-dt);
+    const d2=dist2(S.px,S.py,o.x,o.y);
+    if(d2<28){                                   // in striking range
+      o.el.classList.remove('walking'); o.f=(S.px<o.x)?-1:1;
+      if(o.atkT<=0){
+        o.atkT=1.15;
+        let dmg=o.T.dmg;
+        if(S.hero.id==='golem')dmg=Math.round(dmg*.7);
+        if(S.hero.id==='paladin')dmg=Math.round(dmg*.85);
+        S.hp-=dmg; dmgNum(S.px,S.py,'-'+dmg,'hurt');
+        drawWhud(); checkDeath();
+      }
+    } else if(d2<o.T.aggro*o.T.aggro){           // chase
+      const dx2=S.px-o.x, dy2=S.py-o.y, d=Math.hypot(dx2*1.78,dy2)||1;
+      o.x+=dx2/d*o.T.spd*dt; o.y+=dy2/d*o.T.spd*.6*dt;
+      o.y=Math.max(BAND.top+1,Math.min(BAND.bot+1,o.y));
+      o.f=dx2>0?1:-1; o.el.classList.add('walking');
+    } else {                                     // wander
+      const ddx=o.tx-o.x, ddy=o.ty-o.y, d=Math.hypot(ddx*1.78,ddy);
+      if(d<1){ o.wait-=dt;
+        if(o.wait<=0){ o.tx=Math.max(6,Math.min(94,o.x+(Math.random()*30-15)));
+          o.ty=Math.max(BAND.top+2,Math.min(BAND.bot,o.y+(Math.random()*12-6)));
+          o.wait=1.5+Math.random()*3; }
+        o.el.classList.remove('walking');
+      } else { o.x+=ddx/d*4*dt; o.y+=ddy/d*2.4*dt;
+        if(Math.abs(ddx)>.3)o.f=ddx>0?1:-1; o.el.classList.add('walking'); }
+    }
+    placeSprite(o.el,o.x,o.y,o.f);
+    const bar=o.el.querySelector('.ebar');
+    if(o.hp<o.T.hp){ bar.classList.add('show');
+      bar.querySelector('.f').style.transform=`scaleX(${Math.max(0,o.hp/o.T.hp)})`; }
+  });
   // ---- interact prompt ----
   updatePrompt();
+  // ---- camera follows the player ----
+  updateCamera(dt);
+}
+
+/* player attack — E or Space near an enemy */
+function nearestEnemy(r){
+  let best=null,bd=r*r;
+  E2.enemies.forEach(o=>{ if(o.dead)return;
+    const d=dist2(S.px,S.py,o.x,o.y); if(d<bd){bd=d;best=o;} });
+  return best;
+}
+function attack(){
+  if(E2.atkCd>0) return;
+  const o=nearestEnemy(11); if(!o) return false;
+  E2.atkCd = S.hero.id==='monk'? .34 : .55;
+  E2.player.classList.remove('atk'); void E2.player.offsetWidth; E2.player.classList.add('atk');
+  S.pf = o.x>S.px?1:-1;
+  let dmg=heroAtk(), crit=false;
+  if(S.hero.id==='assassin'&&Math.random()<.3){dmg*=2;crit=true;}
+  o.hp-=dmg; o.hurtT=.15;
+  o.el.classList.add('ehurt'); setTimeout(()=>o.el.classList.remove('ehurt'),140);
+  dmgNum(o.x,o.y,(crit?'✦':'')+'-'+dmg,crit?'crit':'hit');
+  // small knockback
+  const kd=Math.hypot((o.x-S.px)*1.78,o.y-S.py)||1;
+  o.x=Math.max(3,Math.min(97,o.x+(o.x-S.px)/kd*2.2));
+  if(o.hp<=0){
+    o.dead=true; o.el.classList.add('edie');
+    setTimeout(()=>o.el.remove(),520);
+    S.gold+=o.T.gold;
+    let extra='';
+    if(o.t==='minotaur'){ give('sulfur',1); extra=' and a <b>Sunstone</b>'; }
+    if(o.t==='skeleton'&&Math.random()<.4){ give('bread',1); extra=' and <b>Bread</b>'; }
+    toast(`${o.T.name} defeated! <b>+${o.T.gold} gold</b>${extra}`,1900);
+    drawWhud(); drawQBadge();
+  }
+  return true;
 }
 
 function nearestTarget(){
@@ -1349,7 +1572,11 @@ function nearestTarget(){
   return best;
 }
 function updatePrompt(){
-  const L=WORLD[S.loc]; const tgt=nearestTarget(); const ep=$('ep');
+  const L=WORLD[S.loc]; const ep=$('ep');
+  const foe=nearestEnemy(12);
+  if(foe){ ep.innerHTML=`Press <span class="k">[E]</span> to Attack ${foe.T.name}!`;
+    ep.classList.add('show'); return; }
+  const tgt=nearestTarget();
   if(!tgt){ep.classList.remove('show');return;}
   if(tgt.t==='npc'){
     const n=tgt.o.n; let mark='';
@@ -1365,6 +1592,7 @@ function updatePrompt(){
 }
 function interact(){
   if(S.dead)return;
+  if(attack()) return;          // an enemy in range takes priority
   const tgt=nearestTarget();
   if(!tgt)return;
   if(tgt.t==='npc'){ const n=tgt.o.n; n.trade?openTrade():talkNPC(tgt.o.id); }
@@ -1566,7 +1794,7 @@ function questMet(n){
 function heroFace(){
   const h=S.hero;
   return h.portrait
-    ? `<img src="${h.portrait}" style="width:100%;border-radius:10px;object-fit:cover;object-position:50% 20%;max-height:34vh">`
+    ? `<img src="${A(h.portrait)}" style="width:100%;border-radius:10px;object-fit:cover;object-position:50% 20%;max-height:34vh">`
     : heroSVG(h,true);
 }
 function talkNPC(id){
@@ -1764,7 +1992,7 @@ function toast(html,ms=2000){ toastEl.innerHTML=html; toastEl.classList.add('sho
 // build hero picker
 $('heroGrid').innerHTML = HEROES.map(h=>`
   <div class="hero" onclick="newGame('${h.id}')">
-    ${h.portrait?`<img src="${h.portrait}" style="width:100%;height:15vh;object-fit:cover;object-position:50% 22%;border-radius:8px" onerror="this.outerHTML='${heroSVG(h).replace(/'/g,"&#39;")}'">`:heroSVG(h)}
+    ${h.portrait?`<img src="${A(h.portrait)}" style="width:100%;height:15vh;object-fit:cover;object-position:50% 22%;border-radius:8px" onerror="this.outerHTML='${heroSVG(h).replace(/'/g,"&#39;")}'">`:heroSVG(h)}
     <div class="nm">${h.name}</div><div class="cl">${h.role}</div>
     <div class="sk">${h.skill}</div>
   </div>`).join('');
