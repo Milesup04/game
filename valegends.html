@@ -1265,15 +1265,20 @@ function spriteSVG(c){ // c:{c1 body, c2 trim, skin, hair}
 const E2 = {player:null, npcs:[], items:[], enemies:[], keys:new Set(), last:0, raf:0,
   cam:{x:0,y:0}, atkCd:0, hurtCd:0};
 
-/* ---------- camera: the scene is zoomed and pans with the player ---------- */
-const CAMZ=1.30;
+/* ---------- camera: locked follow — the world streams past the player.
+     The scene is zoomed well past the screen and translated so YOU stay
+     near the centre while the background scrolls continuously under your
+     feet; it only lets you approach the screen edge when the scene edge
+     is reached, then you cross into the next area. ---------- */
+const CAMZ=1.55;
 function updateCamera(dt){
-  const tx=Math.max(-10,Math.min(10,(S.px-50)*.34));
-  const ty=Math.max(-5,Math.min(5,(S.py-74)*.22));
-  const k=Math.min(1,dt*4.5);
+  const lim=50*(CAMZ-1)/CAMZ;                       // max pan before edges show
+  const tx=Math.max(-lim,Math.min(lim,S.px-50));    // full follow: player centred
+  const ty=Math.max(-6,Math.min(6,(S.py-76)*.5));
+  const k=Math.min(1,dt*5);
   E2.cam.x+=(tx-E2.cam.x)*k; E2.cam.y+=(ty-E2.cam.y)*k;
   E2.kick=E2.kick||1; E2.kick+=(1-E2.kick)*Math.min(1,dt*2.2);   // arrival zoom settle
-  const tr=`scale(${(CAMZ*E2.kick).toFixed(4)}) translate(${-E2.cam.x}%,${-E2.cam.y}%)`;
+  const tr=`scale(${(CAMZ*E2.kick).toFixed(4)}) translate(${(-E2.cam.x).toFixed(3)}%,${(-E2.cam.y).toFixed(3)}%)`;
   scene.style.transform=tr; $('world').style.transform=tr;
 }
 
