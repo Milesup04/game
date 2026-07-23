@@ -1380,12 +1380,12 @@ const OBJ=[
   {i:'herbgarden',x:130,y:276,h:11,r:0},{i:'arbor',x:202,y:292,h:14,r:6},
   {i:'home1',x:120,y:190,h:18,r:8},{i:'cabin',x:170,y:300,h:18,r:9},
   {i:'wheat',x:112,y:240,h:12,r:0},{i:'stable',x:210,y:196,h:18,r:8},
-  // ═══ Saltmarsh Harbor (NW) ═══
-  {i:'dock',x:66,y:96,h:12,r:0, act:'fish',prompt:'to Fish off the Pier'},
-  {i:'home2',x:150,y:60,h:18,r:8},{i:'hut',x:36,y:52,h:16,r:8},
-  {i:'stall',x:96,y:112,h:13,r:6},{i:'reeds',x:44,y:132,h:9,r:0},
-  {i:'cart',x:120,y:120,h:11,r:5},{i:'cabin',x:170,y:110,h:17,r:9},
-  {i:'reeds',x:150,y:134,h:8,r:0},
+  // ═══ Saltmarsh Harbor (NW) — sea bay at the top, village on the shore ═══
+  {i:'dock',x:70,y:66,h:12,r:0, act:'fish',prompt:'to Fish off the Pier'},
+  {i:'home2',x:150,y:98,h:18,r:8},{i:'hut',x:40,y:110,h:16,r:8},
+  {i:'stall',x:100,y:120,h:13,r:6},{i:'reeds',x:40,y:74,h:9,r:0},
+  {i:'cart',x:120,y:136,h:11,r:5},{i:'cabin',x:168,y:122,h:17,r:9},
+  {i:'reeds',x:150,y:70,h:8,r:0},{i:'home1',x:70,y:126,h:17,r:8},
   // ═══ Old Cemetery ═══
   {i:'altar',x:272,y:62,h:13,r:6, act:'grave',prompt:'to Pay Respects'},
   {i:'belltower',x:302,y:40,h:23,r:8},{i:'roses',x:250,y:70,h:7,r:0},
@@ -1413,11 +1413,11 @@ const OBJ=[
   {i:'oak',x:600,y:242,h:22,r:7},{i:'fantasytree',x:652,y:222,h:22,r:7},
   {i:'obelisk',x:622,y:300,h:16,r:4},{i:'altar',x:648,y:282,h:13,r:6, act:'search',prompt:'to Search the Cairn'},
   {i:'willow',x:670,y:250,h:20,r:6},
-  // ═══ Crystal Lake ═══
-  {i:'dock',x:96,y:362,h:12,r:0, act:'fish',prompt:'to Fish off the Dock'},
-  {i:'lotus',x:60,y:404,h:8,r:0},{i:'reeds',x:42,y:474,h:9,r:0},
-  {i:'willow',x:150,y:484,h:21,r:7},{i:'lotus',x:110,y:440,h:7,r:0},
-  {i:'reeds',x:150,y:360,h:8,r:0},
+  // ═══ Crystal Lake — dock & angler on the south-east shore ═══
+  {i:'dock',x:158,y:426,h:12,r:0, act:'fish',prompt:'to Fish off the Dock'},
+  {i:'lotus',x:70,y:400,h:8,r:0},{i:'reeds',x:40,y:470,h:9,r:0},
+  {i:'willow',x:150,y:496,h:21,r:7},{i:'lotus',x:100,y:440,h:7,r:0},
+  {i:'reeds',x:120,y:352,h:8,r:0},{i:'cabin',x:40,y:360,h:17,r:8},
   // ═══ Verdant Forest ═══
   {i:'cabin',x:250,y:420,h:19,r:9},{i:'oak',x:210,y:360,h:23,r:7},
   {i:'oak',x:300,y:400,h:22,r:7},{i:'fruittrees',x:270,y:360,h:18,r:6},
@@ -1447,17 +1447,17 @@ const OBJ=[
  [330,420,'oak'],[560,410,'willow'],[440,420,'oak'],[350,300,'oak']
 ].forEach(v=>OBJ.push({i:v[2],x:v[0],y:v[1],h:20,r:7}));
 const NPCPOS={mayor:[314,180], trader:[322,262], innkeeper:[376,214],
-  smith:[272,272], alchemist:[356,272], fisher:[98,368],
+  smith:[272,272], alchemist:[356,272], fisher:[150,420],
   gravekeeper:[272,66], scholar:[462,132], hunter:[250,428]};
-const COINPOS=[[335,250],[150,210],[96,410],[272,300],[470,86],[356,272],
-  [272,80],[36,210],[640,428],[500,232],[150,60],[560,470],[640,80],
+const COINPOS=[[335,250],[150,210],[130,470],[272,300],[470,86],[356,272],
+  [272,80],[36,210],[640,428],[500,232],[150,100],[560,470],[640,80],
   [200,470],[420,130],[600,300]];
 const EZONES={forest:['wolf','goblin','goblin'], thornwood:['bandit','bandit','wolf'],
   lake:['slime'], harbor:['slime','goblin'], cemetery:['zombie','skeleton'],
   ruins:['ghost','skeleton'], quarry:['skeleton','spider'], volcano:['minotaur'],
   grotto:['spider'], desert:['bandit','skeleton'], highlands:['wolf','goblin']};
-// water bodies block walking (harbor bay + crystal lake)
-const WATERS=[{cx:96,cy:70,rx:80,ry:52},{cx:88,cy:420,rx:72,ry:82}];
+// water bodies block walking (harbor sea-bay at the top + crystal lake)
+const WATERS=[{cx:100,cy:24,rx:96,ry:34},{cx:82,cy:424,rx:66,ry:74}];
 const LAKE=WATERS[1];   // primary lake (kept for older refs)
 
 /* textured tiled ground: grass blades, tonal tiles, dirt roads, water, biomes */
@@ -2315,10 +2315,23 @@ function starve(){ // called on some actions/time
   S.sta=Math.max(0,S.sta-drain);
 }
 function checkDeath(){
-  if(S.hp<=0 && !S.dead){ S.hp=0; S.dead=true; render();
-    openInfo(`<h1 class="dead">You have fallen</h1><div class="sub">${S.hero.name} could go no further.</div>
-      <div class="btnbar"><button class="big" onclick="location.reload()">Try Again</button></div>`);
+  if(S.hp<=0 && !S.dead){ S.hp=0; S.dead=true; E2.keys.clear();
+    const lost=Math.min(S.gold,Math.ceil(S.gold*0.3));
+    openInfo(`<h1 class="dead">You have fallen</h1>
+      <div class="sub">${S.hero.name} is carried back to the village by kind hands.
+      ${lost>0?`In the confusion, <b>${lost} gold</b> was lost.`:''} Your quest goes on.</div>
+      <div class="btnbar"><button class="big" onclick="revive(${lost})">Recover in the Village</button>
+      <button class="big" onclick="location.reload()">New Hero</button></div>`);
   }
+}
+function revive(lost){
+  S.gold=Math.max(0,S.gold-lost);
+  S.hp=Math.round(S.maxhp*0.6); S.sta=Math.round(S.maxsta*0.6); S.dead=false;
+  S.px=335; S.py=238;                          // back at the village fountain
+  if(E2.player) placeSprite(E2.player,S.px,S.py,S.pf);
+  E2.cam.x=S.px-50; E2.cam.y=S.py-52;
+  closeInfo(); render();
+  toast('You awaken at the village fountain, alive to fight another day.',2600);
 }
 
 /* =====================================================================
