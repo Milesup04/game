@@ -199,8 +199,8 @@
   body.walkmode #hud,body.walkmode #bars,body.walkmode #compass,body.walkmode #prompt,
   body.walkmode #label,body.walkmode .hint,body.walkmode .quest,
   body.walkmode #travel,body.walkmode #actions{display:none!important}
-  #world{position:absolute;left:0;top:0;width:400%;height:300%;z-index:12;
-    overflow:hidden;display:none;will-change:transform;background:#4d7a3c}
+  #world{position:absolute;left:0;top:0;width:700%;height:520%;z-index:12;
+    overflow:hidden;display:none;will-change:transform;background:#5a8040}
   body.walkmode #world{display:block}
   body.walkmode #scene{display:none}
   body.walkmode #compass{display:block!important;z-index:22}
@@ -317,6 +317,37 @@
   #ep.show{opacity:1}
   #ep .k{color:var(--gold-bright)}
 
+  /* persistent objective banner (top-centre) with a direction arrow */
+  #obj{position:absolute;left:50%;top:2.6%;transform:translateX(-50%);z-index:24;display:none;
+    background:linear-gradient(rgba(24,19,11,.92),rgba(12,10,6,.92));border:2px solid var(--gold);
+    border-radius:11px;padding:.5vh 1.3vw;text-align:center;max-width:52%;
+    box-shadow:0 4px 16px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.4)}
+  body.walkmode #obj.show{display:block}
+  #obj .ot{color:var(--gold);font-weight:800;font-size:.66vw;letter-spacing:2px;opacity:.9}
+  #obj .ol{color:#f4efe3;font-weight:700;font-size:1vw;margin-top:.1vh}
+  #obj .oa{color:#3ad0ff;font-weight:900}
+  #obj .od{color:#9fe0ff;font-size:.72vw;opacity:.85}
+  /* cinematic story / ending overlay */
+  #story{position:absolute;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(120% 90% at 50% 40%,#101826,#05060a)}
+  #story.on{display:flex}
+  #story .sc{max-width:64%;text-align:center;color:#e9e2cf;animation:storyIn .8s ease-out}
+  @keyframes storyIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  #story h1{font-size:2.6vw;color:var(--gold-bright);letter-spacing:3px;margin:.2em 0;
+    text-shadow:0 0 24px rgba(232,193,90,.4)}
+  #story .sub2{color:var(--gold);letter-spacing:2px;font-size:1vw;margin-bottom:2vh}
+  #story p{font-size:1.15vw;line-height:1.9;margin:.7em 0;color:#d8d0bc}
+  #story .em{color:var(--gold-bright);font-weight:700}
+  #story .stats{display:flex;gap:2vw;justify-content:center;margin:2vh 0;flex-wrap:wrap}
+  #story .stat{background:rgba(20,24,34,.7);border:1px solid #3a4456;border-radius:10px;padding:1vh 1.6vw}
+  #story .stat b{display:block;font-size:1.8vw;color:var(--gold-bright)}
+  #story .stat span{font-size:.8vw;opacity:.8;letter-spacing:1px}
+  #story .cred{font-size:.85vw;opacity:.7;margin-top:1.5vh;line-height:1.8}
+  #sunburst{position:absolute;inset:0;z-index:79;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 46%,rgba(255,236,160,.9),rgba(255,200,90,.2) 30%,transparent 60%)}
+  #sunburst.flash{animation:burst 2.2s ease-out forwards}
+  @keyframes burst{0%{opacity:0;transform:scale(.4)}25%{opacity:1}100%{opacity:0;transform:scale(2.4)}}
+
   /* ---------- vendor shop windows ---------- */
   .shopwrap{display:flex;gap:1.4vw;align-items:flex-start;min-width:56vw}
   .shopside{flex:0 0 24%;text-align:center}
@@ -423,6 +454,9 @@
     <!-- screen-space atmosphere (particles, mist) -->
     <div id="fx"></div>
     <div id="ep"></div>
+    <div id="obj"></div>
+    <div id="sunburst"></div>
+    <div id="story"></div>
 
     <!-- single compact bottom HUD: bars / hotbar / location+gold -->
     <div id="whud">
@@ -643,18 +677,19 @@ function newGame(heroId){
     quests:{},               // side-quest states: npcId -> 'active' | 'done'
     buff:{},                 // permanent perks earned from quests
     flags:{},                // misc one-time flags
-    dead:false, ruinOpen:false,
+    dead:false, ruinOpen:false, won:false,
     hot:['berries','bread',null,null,null],  // hotbar slots (keys 1-5)
-    px:200, py:152, pf:1,                    // spawn by the village fountain
-    zone:null,
+    px:335, py:238, pf:1,                    // spawn by the village fountain
+    zone:null, kills:0, startTime:Date.now(),
   };
   S.loc='square';                            // audio/light key, set by zones
   document.body.classList.add('imgmode');   // painted panels are the scene
   document.body.classList.add('walkmode');  // free-roam engine on
   $('pick').classList.remove('on');
-  render(); toast(`<b>${h.name}</b> — ${h.role}.<br>${h.skill}<br><span style="opacity:.8">Walk with WASD · E interact · Tab inventory · ❓ for help</span>`, 4200);
+  render();
   if(!E2.raf) E2.raf=requestAnimationFrame(tick);
   AUDIO.start();   // browsers allow audio after this click
+  showIntro();     // opening story, then Begin
 }
 
 /* =====================================================================
@@ -974,7 +1009,7 @@ let _paintedLoc=null;
 function render(){
   // seamless-map mode: the world is built once; just refresh the HUD layers
   if(document.body.classList.contains('walkmode')){
-    buildWorld(); drawWhud(); drawQBadge(); drawMiniMap();
+    buildWorld(); drawWhud(); drawQBadge(); drawMiniMap(); updateObjective();
     const z=zoneAt(S.px,S.py); $('wloc').textContent=z.name;
     return;
   }
@@ -1053,16 +1088,22 @@ function drawCompass(){ drawMiniMap(); }
 /* round minimap: zone patches + points of interest + you (blue) */
 function drawMiniMap(){
   if(!S) return;
-  const zc={village:'#c9b487',farm:'#a8b86a',lake:'#4f9fd0',forest:'#3f6b34',
-    cemetery:'#8a8f7a',ruins:'#9a9f8a',mine:'#8a7455',volcano:'#5a3a32',grotto:'#2a5a5a'};
+  const zc={village:'#c9b487',farm:'#a8b86a',harbor:'#6a94a0',lake:'#4f9fd0',
+    forest:'#3f6b34',thornwood:'#2a4522',cemetery:'#8a8f7a',ruins:'#9a9f8a',
+    desert:'#d8c48a',mine:'#8a7455',quarry:'#8a7455',volcano:'#5a3a32',
+    grotto:'#2a5a5a',highlands:'#7a86a0'};
   let zs='';
-  ZONES.forEach(z=>{zs+=`<rect x="${z.x/MAP.w*100}" y="${z.y/MAP.h*100}" width="${z.w/MAP.w*100}" height="${z.h/MAP.h*100}" rx="4" fill="${zc[z.id]||'#7fa86a'}" opacity=".85"/>`;});
+  ZONES.forEach(z=>{zs+=`<rect x="${z.x/MAP.w*100}" y="${z.y/MAP.h*100}" width="${z.w/MAP.w*100}" height="${z.h/MAP.h*100}" rx="3" fill="${zc[z.id]||'#7fa86a'}" opacity=".85"/>`;});
+  let wat='';
+  WATERS.forEach(w=>{wat+=`<ellipse cx="${w.cx/MAP.w*100}" cy="${w.cy/MAP.h*100}" rx="${w.rx/MAP.w*100}" ry="${w.ry/MAP.h*100}" fill="#3f9fd8"/>`;});
+  // objective waypoint (gold) + player (blue)
+  let way=''; const wp=objectivePoint();
+  if(wp) way=`<circle cx="${wp.x/MAP.w*100}" cy="${wp.y/MAP.h*100}" r="2.4" fill="none" stroke="#ffd23a" stroke-width="1.4"><animate attributeName="r" values="2;4;2" dur="1.4s" repeatCount="indefinite"/></circle>`;
   let poi='';
-  OBJ.forEach(o=>{ if(o.act) poi+=`<circle cx="${o.x/MAP.w*100}" cy="${o.y/MAP.h*100}" r="1.4" fill="#f4efe3" opacity=".9"/>`;});
-  $('cmap').innerHTML=`<rect width="100" height="100" fill="#6a9a52"/>${zs}
-    <ellipse cx="${LAKE.cx/MAP.w*100}" cy="${LAKE.cy/MAP.h*100}" rx="${LAKE.rx/MAP.w*100}" ry="${LAKE.ry/MAP.h*100}" fill="#3f9fd8"/>
-    ${poi}
-    <circle cx="${S.px/MAP.w*100}" cy="${S.py/MAP.h*100}" r="3" fill="#3ad0ff" stroke="#0a2a3a" stroke-width="1"/>`;
+  OBJ.forEach(o=>{ if(o.act&&o.act!=='forage') poi+=`<circle cx="${o.x/MAP.w*100}" cy="${o.y/MAP.h*100}" r="1.2" fill="#f4efe3" opacity=".85"/>`;});
+  $('cmap').innerHTML=`<rect width="100" height="100" fill="#6a9a52"/>${zs}${wat}
+    ${poi}${way}
+    <circle cx="${S.px/MAP.w*100}" cy="${S.py/MAP.h*100}" r="2.6" fill="#3ad0ff" stroke="#0a2a3a" stroke-width="1"/>`;
 }
 
 function drawQuest(){
@@ -1295,17 +1336,24 @@ const BAND = {top:2, bot:298};          // legacy shim (full map is walkable)
    from placed objects (your Region-2 art) on a painted ground.
    Coordinates are map units: x 0..400, y 0..300 (100 = one screen).
    ===================================================================== */
-const MAP={w:400,h:300};
+const MAP={w:700,h:520};
 const ZONES=[
-  {id:'village', name:'Villagestead',  x:120,y:80, w:160,h:120, a:'square'},
-  {id:'farm',    name:'Farmlands',     x:40, y:80, w:80, h:120, a:'square'},
-  {id:'lake',    name:'Crystal Lake',  x:0,  y:180,w:100,h:120, a:'lake'},
-  {id:'forest',  name:'Verdant Forest',x:100,y:200,w:220,h:100, a:'forest'},
-  {id:'cemetery',name:'Old Cemetery',  x:130,y:10, w:100,h:70,  a:'cemetery'},
-  {id:'ruins',   name:'Ancient Ruins', x:270,y:10, w:130,h:120, a:'ruin'},
-  {id:'mine',    name:'Iron Quarry',   x:320,y:130,w:80, h:100, a:'mine'},
-  {id:'volcano', name:'Ashpeak Field', x:320,y:230,w:80, h:70,  a:'volcano'},
-  {id:'grotto',  name:'Glow Grotto',   x:0,  y:110,w:40, h:70,  a:'cave'},
+  // — north band —
+  {id:'harbor',   name:'Saltmarsh Harbor', x:0,  y:0,  w:200,h:150, a:'lake'},
+  {id:'cemetery', name:'Old Cemetery',      x:200,y:0,  w:150,h:140, a:'cemetery'},
+  {id:'ruins',    name:'Ancient Ruins',     x:350,y:0,  w:210,h:175, a:'ruin'},
+  {id:'desert',   name:'Sunscar Wastes',    x:560,y:0,  w:140,h:180, a:'gate'},
+  // — middle band —
+  {id:'grotto',   name:'Glow Grotto',       x:0,  y:150,w:90, h:170, a:'cave'},
+  {id:'farm',     name:'Farmlands',         x:90, y:150,w:150,h:170, a:'square'},
+  {id:'village',  name:'Villagestead',      x:240,y:150,w:190,h:170, a:'square'},
+  {id:'quarry',   name:'Iron Quarry',       x:430,y:175,w:130,h:165, a:'mine'},
+  {id:'highlands',name:'Windy Highlands',   x:560,y:180,w:140,h:160, a:'trail'},
+  // — south band —
+  {id:'lake',     name:'Crystal Lake',      x:0,  y:320,w:180,h:200, a:'lake'},
+  {id:'forest',   name:'Verdant Forest',    x:180,y:320,w:250,h:200, a:'forest'},
+  {id:'thornwood',name:'Thornwood',         x:430,y:340,w:150,h:180, a:'forest'},
+  {id:'volcano',  name:'Ashpeak Field',     x:580,y:340,w:120,h:180, a:'volcano'},
 ];
 function zoneAt(x,y){ for(const z of ZONES)
   if(x>=z.x&&x<z.x+z.w&&y>=z.y&&y<z.y+z.h) return z;
@@ -1314,123 +1362,167 @@ function zoneAt(x,y){ for(const z of ZONES)
 /* placed objects: img (assets/structures), pos, display height (vh units),
    collision radius r (0 = walk-through), optional [E] action */
 const OBJ=[
-  // — Villagestead —
-  {i:'fountain',x:200,y:148,h:18,r:7, act:'examine',prompt:'to Examine Fountain'},
-  {i:'well',x:172,y:132,h:13,r:5, act:'examine',prompt:'to Draw Water'},
-  {i:'inn',x:232,y:118,h:28,r:11, act:'rest',prompt:'to Rest at the Inn'},
-  {i:'townhall',x:208,y:96,h:26,r:11},
-  {i:'blacksmith',x:152,y:172,h:22,r:10, act:'craft',prompt:'to Craft at the Forge'},
-  {i:'chapel',x:252,y:168,h:22,r:9, act:'pray',prompt:'to Pray'},
-  {i:'stall',x:184,y:166,h:15,r:6},
-  {i:'potionstand',x:218,y:168,h:14,r:6, act:'shop',prompt:'to Buy Potions'},
-  {i:'stable',x:142,y:120,h:20,r:9},
-  {i:'home1',x:166,y:102,h:19,r:8},{i:'home2',x:250,y:100,h:19,r:8},
-  {i:'hut',x:186,y:84,h:17,r:8},{i:'guardpost',x:264,y:140,h:22,r:7},
-  {i:'cart',x:158,y:150,h:12,r:5},
-  // — Farmlands —
-  {i:'wheat',x:88,y:140,h:14,r:0},{i:'veg',x:104,y:164,h:12,r:0},
-  {i:'herbgarden',x:88,y:182,h:12,r:0},{i:'arbor',x:118,y:192,h:15,r:6},
-  {i:'home1',x:74,y:118,h:18,r:8},
-  // — Crystal Lake —
-  {i:'dock',x:58,y:232,h:13,r:0, act:'fish',prompt:'to Fish off the Dock'},
-  {i:'reeds',x:78,y:278,h:9,r:0},{i:'lotus',x:66,y:212,h:8,r:0},
-  // — Verdant Forest —
-  {i:'oak',x:128,y:238,h:24,r:7},{i:'oak',x:232,y:252,h:22,r:7},
-  {i:'fruittrees',x:172,y:222,h:19,r:7},{i:'willow',x:148,y:290,h:22,r:7},
-  {i:'fantasytree',x:268,y:286,h:24,r:7},{i:'meadow',x:118,y:214,h:9,r:0},
-  {i:'berrybush',x:158,y:236,h:8,r:0, act:'forage',prompt:'to Gather Berries'},
-  {i:'berrybush',x:208,y:262,h:8,r:0, act:'forage',prompt:'to Gather Berries'},
-  {i:'berrybush',x:254,y:282,h:8,r:0, act:'forage',prompt:'to Gather Berries'},
-  {i:'cabin',x:292,y:232,h:19,r:9},
-  // — Old Cemetery —
-  {i:'altar',x:168,y:52,h:14,r:6, act:'grave',prompt:'to Pay Respects'},
-  {i:'belltower',x:202,y:42,h:24,r:8},{i:'roses',x:156,y:66,h:8,r:0},
-  {i:'roses',x:214,y:64,h:7,r:0},
-  // — Ancient Ruins —
-  {i:'pylon',x:348,y:66,h:26,r:10, act:'portal',prompt:'to Activate Portal'},
-  {i:'ruinarch',x:318,y:88,h:16,r:7},{i:'ruinarch',x:372,y:98,h:18,r:8},
-  {i:'font',x:340,y:102,h:13,r:5, act:'chronicle',prompt:'to Read Chronicle'},
-  // — Iron Quarry —
-  {i:'ruinarch',x:372,y:178,h:19,r:8, act:'mine',prompt:'to Mine Iron'},
-  {i:'cart',x:336,y:196,h:13,r:5},
-  // — Ashpeak Field —
-  {i:'altar',x:366,y:268,h:14,r:6, act:'sulfur',prompt:'to Gather Sunstone'},
-  // — Glow Grotto —
-  {i:'glowshroom',x:22,y:150,h:12,r:0, act:'glow',prompt:'to Gather Crystal'},
-  {i:'glowshroom',x:30,y:166,h:9,r:0},{i:'fantasytree',x:12,y:132,h:17,r:6},
+  // ═══ Villagestead (centre) ═══
+  {i:'fountain',x:335,y:238,h:17,r:7, act:'examine',prompt:'to Examine Fountain'},
+  {i:'well',x:300,y:192,h:12,r:5, act:'examine',prompt:'to Draw Water'},
+  {i:'inn',x:376,y:206,h:26,r:11, act:'rest',prompt:'to Rest at the Inn'},
+  {i:'townhall',x:312,y:176,h:24,r:11},
+  {i:'blacksmith',x:270,y:266,h:21,r:10, act:'craft',prompt:'to Craft at the Forge'},
+  {i:'chapel',x:398,y:262,h:21,r:9, act:'pray',prompt:'to Pray'},
+  {i:'stall',x:322,y:258,h:14,r:6},
+  {i:'potionstand',x:356,y:264,h:13,r:6, act:'shop',prompt:'to Buy Potions'},
+  {i:'stable',x:268,y:206,h:19,r:9},
+  {i:'home1',x:300,y:178,h:18,r:8},{i:'home2',x:394,y:176,h:18,r:8},
+  {i:'hut',x:352,y:302,h:16,r:8},{i:'guardpost',x:414,y:238,h:21,r:7},
+  {i:'cart',x:288,y:250,h:11,r:5},{i:'home1',x:414,y:300,h:18,r:8},
+  // ═══ Farmlands ═══
+  {i:'wheat',x:150,y:220,h:13,r:0},{i:'veg',x:182,y:250,h:11,r:0},
+  {i:'herbgarden',x:130,y:276,h:11,r:0},{i:'arbor',x:202,y:292,h:14,r:6},
+  {i:'home1',x:120,y:190,h:18,r:8},{i:'cabin',x:170,y:300,h:18,r:9},
+  {i:'wheat',x:112,y:240,h:12,r:0},{i:'stable',x:210,y:196,h:18,r:8},
+  // ═══ Saltmarsh Harbor (NW) ═══
+  {i:'dock',x:66,y:96,h:12,r:0, act:'fish',prompt:'to Fish off the Pier'},
+  {i:'home2',x:150,y:60,h:18,r:8},{i:'hut',x:36,y:52,h:16,r:8},
+  {i:'stall',x:96,y:112,h:13,r:6},{i:'reeds',x:44,y:132,h:9,r:0},
+  {i:'cart',x:120,y:120,h:11,r:5},{i:'cabin',x:170,y:110,h:17,r:9},
+  {i:'reeds',x:150,y:134,h:8,r:0},
+  // ═══ Old Cemetery ═══
+  {i:'altar',x:272,y:62,h:13,r:6, act:'grave',prompt:'to Pay Respects'},
+  {i:'belltower',x:302,y:40,h:23,r:8},{i:'roses',x:250,y:70,h:7,r:0},
+  {i:'roses',x:322,y:66,h:7,r:0},{i:'obelisk',x:236,y:96,h:13,r:4},
+  {i:'obelisk',x:312,y:100,h:13,r:4},{i:'chapel',x:284,y:118,h:18,r:8},
+  // ═══ Ancient Ruins ═══
+  {i:'pylon',x:470,y:66,h:24,r:10, act:'portal',prompt:'to Activate Portal'},
+  {i:'ruinarch',x:420,y:90,h:16,r:7},{i:'ruinarch',x:512,y:112,h:18,r:8},
+  {i:'font',x:462,y:126,h:12,r:5, act:'chronicle',prompt:'to Read Chronicle'},
+  {i:'altar',x:404,y:56,h:13,r:6},{i:'obelisk',x:526,y:66,h:15,r:4},
+  {i:'belltower',x:388,y:126,h:20,r:7},
+  // ═══ Sunscar Wastes (desert, far NE) ═══
+  {i:'ruinarch',x:622,y:92,h:17,r:8},{i:'obelisk',x:600,y:130,h:15,r:4},
+  {i:'altar',x:644,y:60,h:13,r:6, act:'search',prompt:'to Search the Shrine'},
+  {i:'obelisk',x:660,y:120,h:14,r:4},{i:'ruinarch',x:590,y:60,h:14,r:7},
+  // ═══ Glow Grotto ═══
+  {i:'glowshroom',x:32,y:200,h:12,r:0, act:'glow',prompt:'to Gather Crystal'},
+  {i:'glowshroom',x:44,y:244,h:9,r:0},{i:'glowshroom',x:22,y:282,h:9,r:0},
+  {i:'fantasytree',x:16,y:176,h:17,r:6},{i:'glowshroom',x:58,y:224,h:8,r:0},
+  // ═══ Iron Quarry ═══
+  {i:'ruinarch',x:500,y:220,h:19,r:8, act:'mine',prompt:'to Mine Iron'},
+  {i:'obelisk',x:460,y:252,h:15,r:4},{i:'cart',x:472,y:300,h:12,r:5},
+  {i:'obelisk',x:524,y:292,h:16,r:4},{i:'guardpost',x:540,y:210,h:20,r:7},
+  // ═══ Windy Highlands ═══
+  {i:'oak',x:600,y:242,h:22,r:7},{i:'fantasytree',x:652,y:222,h:22,r:7},
+  {i:'obelisk',x:622,y:300,h:16,r:4},{i:'altar',x:648,y:282,h:13,r:6, act:'search',prompt:'to Search the Cairn'},
+  {i:'willow',x:670,y:250,h:20,r:6},
+  // ═══ Crystal Lake ═══
+  {i:'dock',x:96,y:362,h:12,r:0, act:'fish',prompt:'to Fish off the Dock'},
+  {i:'lotus',x:60,y:404,h:8,r:0},{i:'reeds',x:42,y:474,h:9,r:0},
+  {i:'willow',x:150,y:484,h:21,r:7},{i:'lotus',x:110,y:440,h:7,r:0},
+  {i:'reeds',x:150,y:360,h:8,r:0},
+  // ═══ Verdant Forest ═══
+  {i:'cabin',x:250,y:420,h:19,r:9},{i:'oak',x:210,y:360,h:23,r:7},
+  {i:'oak',x:300,y:400,h:22,r:7},{i:'fruittrees',x:270,y:360,h:18,r:6},
+  {i:'willow',x:340,y:470,h:22,r:7},{i:'fantasytree',x:390,y:420,h:24,r:7},
+  {i:'meadow',x:230,y:470,h:9,r:0},{i:'oak',x:410,y:380,h:21,r:7},
+  {i:'oak',x:196,y:430,h:20,r:7},{i:'fantasytree',x:320,y:340,h:20,r:7},
+  // ═══ Thornwood (dark forest, bandits) ═══
+  {i:'oak',x:470,y:380,h:21,r:7},{i:'fantasytree',x:540,y:420,h:23,r:7},
+  {i:'cabin',x:500,y:470,h:18,r:9},{i:'cart',x:520,y:490,h:11,r:5},
+  {i:'oak',x:450,y:460,h:20,r:7},{i:'willow',x:560,y:470,h:20,r:7},
+  // ═══ Ashpeak Field (volcano) ═══
+  {i:'altar',x:640,y:420,h:13,r:6, act:'sulfur',prompt:'to Gather Sunstone'},
+  {i:'obelisk',x:600,y:460,h:15,r:4},{i:'ruinarch',x:660,y:470,h:16,r:7},
 ];
 // bounty of the valley: pickable fruit bushes + orchard trees everywhere
-[[132,222],[188,246],[236,270],[276,252],[118,268],[164,282],[298,268],
- [72,146],[112,128],[96,196],[140,96],[246,86],[286,146],[302,118],
- [58,196],[86,258],[336,120],[352,240]].forEach(p=>OBJ.push(
+[[152,340],[236,360],[300,470],[360,440],[196,480],[420,460],[268,300],
+ [130,120],[100,300],[540,300],[600,340],[214,200],[330,300],[470,320],
+ [120,440],[260,250],[400,300],[480,430],[560,360],[180,250],[350,380],
+ [640,300],[560,250],[440,140]].forEach(p=>OBJ.push(
   {i:'berrybush',x:p[0],y:p[1],h:8,r:0, act:'forage',prompt:'to Pick Fruit'}));
-[[76,164],[124,110],[204,224],[262,236],[292,96],[60,120]].forEach(p=>OBJ.push(
-  {i:'fruittrees',x:p[0],y:p[1],h:18,r:6, act:'forage',prompt:'to Pick Fruit'}));
-// extra scatter so the valley feels planted
-[[104,238],'oak',[224,290],'oak',[150,252],'willow',[314,206],'fantasytree',
- [244,120],'oak',[64,92],'willow'].forEach((v,i,arr)=>{
-  if(i%2===0) OBJ.push({i:arr[i+1],x:v[0],y:v[1],h:20,r:7});
-});
-const NPCPOS={mayor:[215,104], trader:[187,170], innkeeper:[236,126],
-  smith:[157,178], alchemist:[222,172], fisher:[62,238],
-  gravekeeper:[178,60], scholar:[344,96], hunter:[286,238]};
-const COINPOS=[[196,158],[90,150],[62,226],[210,250],[352,92],[368,262],[182,56],[32,156]];
-const EZONES={forest:['wolf','goblin','goblin'], lake:['slime'],
-  cemetery:['zombie','skeleton'], ruins:['ghost','skeleton'],
-  mine:['skeleton','spider'], volcano:['minotaur'], grotto:['spider']};
-const LAKE={cx:42,cy:248,rx:40,ry:42};   // water blocks walking
+[[176,364],[224,290],[340,360],[380,470],[292,340],[160,270],[520,360],
+ [600,400],[240,300],[420,340]].forEach(p=>OBJ.push(
+  {i:'fruittrees',x:p[0],y:p[1],h:17,r:6, act:'forage',prompt:'to Pick Fruit'}));
+// extra scatter of trees so the wilds feel planted
+[[164,392,'oak'],[284,420,'oak'],[210,300,'willow'],[600,300,'fantasytree'],
+ [244,340,'oak'],[124,360,'willow'],[380,340,'oak'],[490,410,'fantasytree'],
+ [330,420,'oak'],[560,410,'willow'],[440,420,'oak'],[350,300,'oak']
+].forEach(v=>OBJ.push({i:v[2],x:v[0],y:v[1],h:20,r:7}));
+const NPCPOS={mayor:[314,180], trader:[322,262], innkeeper:[376,214],
+  smith:[272,272], alchemist:[356,272], fisher:[98,368],
+  gravekeeper:[272,66], scholar:[462,132], hunter:[250,428]};
+const COINPOS=[[335,250],[150,210],[96,410],[272,300],[470,86],[356,272],
+  [272,80],[36,210],[640,428],[500,232],[150,60],[560,470],[640,80],
+  [200,470],[420,130],[600,300]];
+const EZONES={forest:['wolf','goblin','goblin'], thornwood:['bandit','bandit','wolf'],
+  lake:['slime'], harbor:['slime','goblin'], cemetery:['zombie','skeleton'],
+  ruins:['ghost','skeleton'], quarry:['skeleton','spider'], volcano:['minotaur'],
+  grotto:['spider'], desert:['bandit','skeleton'], highlands:['wolf','goblin']};
+// water bodies block walking (harbor bay + crystal lake)
+const WATERS=[{cx:96,cy:70,rx:80,ry:52},{cx:88,cy:420,rx:72,ry:82}];
+const LAKE=WATERS[1];   // primary lake (kept for older refs)
 
-/* textured tiled ground: grass blades, tonal tiles, dirt roads, water */
+/* textured tiled ground: grass blades, tonal tiles, dirt roads, water, biomes */
 function groundSVG(){
+  const W=MAP.w,H=MAP.h;
   let sd=7; const rnd=()=>{sd=(sd*16807)%2147483647; return sd/2147483647;};
   // tonal grass tiles (a soft checker of green tones, tiny jitter)
-  let tiles='';
-  const T=8;
-  for(let gy=0;gy<300/T;gy++) for(let gx=0;gx<400/T;gx++){
+  let tiles=''; const T=8;
+  for(let gy=0;gy<H/T;gy++) for(let gx=0;gx<W/T;gx++){
     const tone=['#5f9346','#6aa04f','#588c40','#65994a'][(gx+gy+((rnd()*2)|0))%4];
-    tiles+=`<rect x="${gx*T}" y="${gy*T}" width="${T}" height="${T}" fill="${tone}" opacity="${(.35+rnd()*.3).toFixed(2)}"/>`;
+    tiles+=`<rect x="${gx*T}" y="${gy*T}" width="${T}" height="${T}" fill="${tone}" opacity="${(.32+rnd()*.28).toFixed(2)}"/>`;
   }
-  // fine grass-blade texture as a pattern
   let blades='';
-  for(let i=0;i<12;i++){const x=(rnd()*4).toFixed(1),y=(4-rnd()*3).toFixed(1),h=(1.4+rnd()*1.8).toFixed(1);
+  for(let i=0;i<12;i++){const x=(rnd()*4).toFixed(1),h=(1.4+rnd()*1.8).toFixed(1);
     blades+=`<path d="M${x} 4 q0.3 -${h} 0 -${h}" stroke="#4f8038" stroke-width="0.4" fill="none" opacity=".5"/>`;}
-  // scattered flower dots for life
   let flow='';
-  for(let i=0;i<120;i++){const x=(rnd()*400).toFixed(1),y=(rnd()*300).toFixed(1);
+  for(let i=0;i<300;i++){const x=(rnd()*W).toFixed(1),y=(rnd()*H).toFixed(1);
     flow+=`<circle cx="${x}" cy="${y}" r="0.8" fill="${['#e8d86a','#d87a9a','#f0f0f0','#c86ad8','#f0a040'][i%5]}" opacity=".8"/>`;}
-  const road=(d)=>`<path d="${d}" fill="none" stroke="#7a6444" stroke-width="8" stroke-linecap="round" opacity=".9"/>
-    <path d="${d}" fill="none" stroke="#a68d5e" stroke-width="5.2" stroke-linecap="round"/>
-    <path d="${d}" fill="none" stroke="#bda87c" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 5" opacity=".6"/>`;
-  return `<svg viewBox="0 0 400 300" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;image-rendering:auto">
+  const road=(d)=>`<path d="${d}" fill="none" stroke="#7a6444" stroke-width="9" stroke-linecap="round" opacity=".9"/>
+    <path d="${d}" fill="none" stroke="#a68d5e" stroke-width="6" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="#bda87c" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="1 5" opacity=".6"/>`;
+  // biome floor tints keyed to the new zone layout
+  const patch=(cx,cy,rx,ry,fill,op)=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}" opacity="${op}"/>`;
+  let water='';
+  WATERS.forEach(w=>{ water+=
+    `<ellipse cx="${w.cx}" cy="${w.cy}" rx="${w.rx+5}" ry="${w.ry+5}" fill="#cdbb90"/>
+     <ellipse cx="${w.cx}" cy="${w.cy}" rx="${w.rx}" ry="${w.ry}" fill="url(#wat)"/>
+     <ellipse cx="${w.cx-8}" cy="${w.cy-10}" rx="16" ry="8" fill="#9fdcf5" opacity=".55"/>`;});
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
     <defs>
       <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#6a9d4d"/><stop offset="1" stop-color="#548040"/></linearGradient>
+        <stop offset="0" stop-color="#6a9d4d"/><stop offset="1" stop-color="#4f7b3c"/></linearGradient>
       <pattern id="blade" width="4" height="4" patternUnits="userSpaceOnUse">${blades}</pattern>
       <radialGradient id="ash"><stop offset="0" stop-color="#4a3230"/><stop offset="1" stop-color="#4a323000"/></radialGradient>
       <radialGradient id="sto"><stop offset="0" stop-color="#8f9078"/><stop offset="1" stop-color="#8f907800"/></radialGradient>
+      <radialGradient id="san"><stop offset="0" stop-color="#d8c48a"/><stop offset="1" stop-color="#d8c48a00"/></radialGradient>
       <radialGradient id="dgr"><stop offset="0" stop-color="#3c6132"/><stop offset="1" stop-color="#3c613200"/></radialGradient>
       <radialGradient id="wat"><stop offset="0" stop-color="#5fbdef"/><stop offset=".8" stop-color="#2f7fb8"/><stop offset="1" stop-color="#27618c"/></radialGradient>
       <radialGradient id="glo"><stop offset="0" stop-color="#204e4e"/><stop offset="1" stop-color="#204e4e00"/></radialGradient>
-      <radialGradient id="vig"><stop offset=".7" stop-color="#00000000"/><stop offset="1" stop-color="#1a2a1055"/></radialGradient>
+      <radialGradient id="vig"><stop offset=".72" stop-color="#00000000"/><stop offset="1" stop-color="#1a2a1055"/></radialGradient>
     </defs>
-    <rect width="400" height="300" fill="url(#gr)"/>
+    <rect width="${W}" height="${H}" fill="url(#gr)"/>
     <g>${tiles}</g>
-    <rect width="400" height="300" fill="url(#blade)" opacity=".5"/>
-    <ellipse cx="210" cy="250" rx="140" ry="66" fill="url(#dgr)" opacity=".75"/>
-    <ellipse cx="180" cy="45" rx="72" ry="46" fill="url(#sto)" opacity=".6"/>
-    <ellipse cx="335" cy="65" rx="82" ry="62" fill="url(#sto)" opacity=".75"/>
-    <ellipse cx="360" cy="180" rx="62" ry="56" fill="#7a6a52" opacity=".6"/>
-    <ellipse cx="360" cy="265" rx="66" ry="52" fill="url(#ash)" opacity=".9"/>
-    <ellipse cx="20" cy="145" rx="46" ry="52" fill="url(#glo)" opacity=".85"/>
-    ${road('M200 150 Q160 150 100 150')} ${road('M200 150 Q200 200 170 240 Q150 270 120 280')}
-    ${road('M200 150 Q210 100 195 60')} ${road('M200 150 Q260 120 330 80')}
-    ${road('M200 150 Q280 160 355 180')} ${road('M355 180 Q365 220 362 262')}
-    ${road('M100 150 Q60 180 55 228')}
+    <rect width="${W}" height="${H}" fill="url(#blade)" opacity=".5"/>
+    ${patch(275,70,80,60,'url(#sto)',.6)}       <!-- cemetery -->
+    ${patch(455,88,120,90,'url(#sto)',.75)}     <!-- ruins -->
+    ${patch(630,90,90,95,'url(#san)',.85)}      <!-- desert -->
+    ${patch(45,235,60,90,'url(#glo)',.85)}      <!-- grotto -->
+    ${patch(495,255,80,90,'#7a6a52',.55)}       <!-- quarry -->
+    ${patch(300,430,150,110,'url(#dgr)',.7)}    <!-- forest -->
+    ${patch(505,430,90,100,'url(#dgr)',.8)}     <!-- thornwood (darker) -->
+    ${patch(505,430,90,100,'#12200e',.28)}
+    ${patch(640,440,80,90,'url(#ash)',.9)}      <!-- ashpeak -->
+    ${road('M335 238 Q260 210 100 100')}
+    ${road('M335 238 Q300 120 275 60')}
+    ${road('M335 238 Q420 150 470 70')}
+    ${road('M335 238 Q470 240 540 220')}
+    ${road('M540 220 Q640 240 640 300')}
+    ${road('M335 238 Q300 340 260 420')}
+    ${road('M335 238 Q200 260 96 362')}
+    ${road('M470 70 Q560 60 630 90')}
+    ${road('M260 420 Q400 440 500 470')}
     ${flow}
-    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx+5}" ry="${LAKE.ry+5}" fill="#cdbb90"/>
-    <ellipse cx="${LAKE.cx}" cy="${LAKE.cy}" rx="${LAKE.rx}" ry="${LAKE.ry}" fill="url(#wat)"/>
-    <ellipse cx="${LAKE.cx-8}" cy="${LAKE.cy-10}" rx="15" ry="8" fill="#9fdcf5" opacity=".55"/>
-    <rect width="400" height="300" fill="url(#vig)"/>
+    ${water}
+    <rect width="${W}" height="${H}" fill="url(#vig)"/>
   </svg>`;
 }
 // legacy per-screen tables retired by the seamless map:
@@ -1460,11 +1552,100 @@ function spriteSVG(c){ // c:{c1 body, c2 trim, skin, hair}
 const E2 = {player:null, npcs:[], items:[], enemies:[], keys:new Set(), last:0, raf:0,
   cam:{x:0,y:0}, atkCd:0, hurtCd:0};
 
+/* =====================================================================
+   MAIN QUEST — a guided, winnable objective with a real ending.
+   Stage 0: meet the Mayor · 1: gather Iron, Sunstone, Chronicle Page ·
+   2: all gathered · 3: Sunwell rekindled (victory).
+   ===================================================================== */
+function objByAct(a){ return OBJ.find(o=>o.act===a); }
+function objectivePoint(){
+  if(!S) return null;
+  if(S.quest===0){ const p=NPCPOS.mayor; return {x:p[0],y:p[1],
+    label:'Speak to the Mayor in the Town Hall'}; }
+  if(S.quest>=3) return null;
+  if(!has('iron')){ const o=objByAct('mine'); return {x:o.x,y:o.y,
+    label:'Mine Iron Ore at the Iron Quarry (east)'}; }
+  if(!has('sulfur')){ const o=objByAct('sulfur'); return {x:o.x,y:o.y,
+    label:'Claim the Sunstone at Ashpeak — beware the Minotaur (south-east)'}; }
+  if(!has('page')){ const o=objByAct('chronicle'); return {x:o.x,y:o.y,
+    label:'Read the Chronicle in the Ancient Ruins (north)'}; }
+  const o=objByAct('portal'); return {x:o.x,y:o.y,
+    label:'Activate the Portal to rekindle the Sunwell (north ruins)'};
+}
+const ARROWS=['↑','↗','→','↘','↓','↙','←','↖'];
+function updateObjective(){
+  const el=$('obj'); const wp=objectivePoint();
+  if(!wp || !document.body.classList.contains('walkmode') || anyModal()){
+    el.classList.remove('show'); return; }
+  const dx=(wp.x-S.px), dy=(wp.y-S.py);
+  const dist=Math.hypot(dx*1.4,dy);
+  let arrow='◉';
+  if(dist>8){ const ang=(Math.atan2(dy,dx)*180/Math.PI+90+360)%360;
+    arrow=ARROWS[Math.round(ang/45)%8]; }
+  const near = dist<10 ? '<span class="od">— you\'re here</span>' :
+    `<span class="oa">${arrow}</span> <span class="od">${Math.round(dist)}m</span>`;
+  el.innerHTML=`<div class="ot">OBJECTIVE</div><div class="ol">${wp.label} ${near}</div>`;
+  el.classList.add('show');
+}
+
+/* opening story — shown once, after the hero is chosen */
+function showIntro(){
+  const s=$('story');
+  s.innerHTML=`<div class="sc">
+    <div class="sub2">VALEGENDS</div>
+    <h1>The Darkened Sunwell</h1>
+    <p>For a thousand years the <span class="em">Sunwell</span> burned at the heart of the valley,
+       and its light kept the fields green and the shadows at bay.</p>
+    <p>Now it has gone <span class="em">dark</span>. Crops wither, the water runs cold, and creatures
+       long forgotten crawl out of the hills.</p>
+    <p>You are the hero the valley called for. Find the <span class="em">Mayor</span> in the Town Hall —
+       he knows the old rite that can rekindle the light.</p>
+    <p style="opacity:.8;font-size:.95vw">Walk with <b>WASD</b> · <b>E</b> to act & fight · <b>Tab</b> for your bag ·
+       follow the gold <b>◆</b> on your map.</p>
+    <div class="btnbar"><button class="big" onclick="beginPlay()">Begin your journey</button></div>
+  </div>`;
+  s.classList.add('on');
+}
+function beginPlay(){ $('story').classList.remove('on');
+  toast('Find the <b>Mayor</b> in the Town Hall — follow the gold marker on your map.',4200); }
+
+/* VICTORY — the ending sequence */
+function victory(){
+  S.won=true;
+  $('sunburst').classList.add('flash');
+  if(AUDIO.ctx){ // triumphant chord
+    [60,64,67,72].forEach((m,i)=>setTimeout(()=>pad([m],.16,3),i*90));
+  }
+  setTimeout(()=>{
+    const mins=Math.max(1,Math.round((Date.now()-S.startTime)/60000));
+    const sideDone=Object.values(S.quests).filter(v=>v==='done').length;
+    const s=$('story');
+    s.innerHTML=`<div class="sc">
+      <div class="sub2">VALEGENDS</div>
+      <h1>The Sunwell Rekindled</h1>
+      <p>${S.hero.name} raised the Iron, the Sunstone and the ancient rite before the portal —
+         and light <span class="em">roared</span> back into the valley.</p>
+      <p>The fields greened in a single dawn. The shadows fled to the far hills. Bells rang in
+         every village, and the people spoke a new name in their songs: <span class="em">yours</span>.</p>
+      <div class="stats">
+        <div class="stat"><b>${S.kills}</b><span>MONSTERS SLAIN</span></div>
+        <div class="stat"><b>${S.gold}</b><span>GOLD EARNED</span></div>
+        <div class="stat"><b>${sideDone}</b><span>SIDE QUESTS</span></div>
+        <div class="stat"><b>${mins}</b><span>MINUTES</span></div>
+      </div>
+      <p class="em" style="font-size:1.3vw">✦ The valley is saved ✦</p>
+      <div class="cred">A VALEGENDS adventure<br>Game design & art direction by Miles<br>Built with Claude</div>
+      <div class="btnbar"><button class="big" onclick="location.reload()">Play Again</button></div>
+    </div>`;
+    s.classList.add('on');
+  },1600);
+}
+
 /* ---------- camera: a viewport window scrolling over the big map,
      locked to the player and clamped at the map borders ---------- */
 function updateCamera(dt){
   const tx=Math.max(0,Math.min(MAP.w-100,S.px-50));
-  const ty=Math.max(0,Math.min(MAP.h-100,S.py-58));
+  const ty=Math.max(0,Math.min(MAP.h-100,S.py-52));
   const k=Math.min(1,dt*5);
   E2.cam.x+=(tx-E2.cam.x)*k; E2.cam.y+=(ty-E2.cam.y)*k;
   $('world').style.transform=
@@ -1615,7 +1796,7 @@ function dmgNum(x,y,txt,cls){
   $('world').appendChild(el); setTimeout(()=>el.remove(),850);
 }
 
-function anyModal(){ return ['pick','info','inv'].some(id=>$(id).classList.contains('on')); }
+function anyModal(){ return ['pick','info','inv','story'].some(id=>$(id).classList.contains('on')); }
 
 function mkEnemy(w,t,ex,ey){
   const T=ETYPES[t];
@@ -1693,7 +1874,7 @@ function buildWorld(){
   el.dataset.h='15';
   w.appendChild(el);
   E2.player=el;
-  if(S.px==null){S.px=200;S.py=152;}   // spawn by the village fountain
+  if(S.px==null){S.px=335;S.py=238;}   // spawn by the village fountain
   S.pf=S.pf||1;
   placeSprite(el,S.px,S.py,S.pf);
   E2.npcs.forEach(o=>placeSprite(o.el,o.x,o.y,o.f));
@@ -1746,9 +1927,11 @@ function tick(t){
       const ddx=(nx-c.x)*1.4, ddy=ny-c.y, d=Math.hypot(ddx,ddy);
       if(d<c.r){ const f2=c.r/(d||.001); nx=c.x+ddx*f2/1.4; ny=c.y+ddy*f2; }
     }
-    // the lake is water — no walking in (dock is on the rim)
-    const lx=(nx-LAKE.cx)/LAKE.rx, ly=(ny-LAKE.cy)/LAKE.ry;
-    if(lx*lx+ly*ly<1){ nx=S.px; ny=S.py; }
+    // water blocks walking (docks sit on the rim)
+    for(const w of WATERS){
+      const lx=(nx-w.cx)/w.rx, ly=(ny-w.cy)/w.ry;
+      if(lx*lx+ly*ly<1){ nx=S.px; ny=S.py; break; }
+    }
     S.px=nx; S.py=ny;
     // walking costs a trickle of energy (Bard & Sturdy Boots walk cheaper)
     let drain=.5; if(S.hero.id==='bard')drain=.28; if(S.buff.boots)drain*=.6;
@@ -1842,8 +2025,9 @@ function tick(t){
     if(o.hp<o.T.hp){ bar.classList.add('show');
       bar.querySelector('.f').style.transform=`scaleX(${Math.max(0,o.hp/o.T.hp)})`; }
   });
-  // ---- interact prompt ----
+  // ---- interact prompt + objective ----
   updatePrompt();
+  updateObjective();
   // ---- camera follows the player ----
   updateCamera(dt);
 }
@@ -1870,12 +2054,14 @@ function attack(){
   const kd=Math.hypot((o.x-S.px)*1.78,o.y-S.py)||1;
   o.x=Math.max(3,Math.min(MAP.w-3,o.x+(o.x-S.px)/kd*2.2));
   if(o.hp<=0){
-    o.dead=true; o.el.classList.add('edie');
-    setTimeout(()=>o.el.remove(),520);
+    o.dead=true; o.resT=45; o.el.classList.add('edie'); S.kills++;
+    setTimeout(()=>{ if(o.dead) o.el.remove(); },520);
     S.gold+=o.T.gold;
     let extra='';
-    if(o.t==='minotaur'){ give('sulfur',1); extra=' and a <b>Sunstone</b>'; }
-    if(o.t==='skeleton'&&Math.random()<.4){ give('bread',1); extra=' and <b>Bread</b>'; }
+    if(o.t==='minotaur'){ give('sulfur',1); extra=' and the <b>Sunstone</b>'; }
+    else if(o.t==='bandit'&&Math.random()<.5){ give('gold',5); extra=' and a coin pouch'; }
+    else if(o.t==='skeleton'&&Math.random()<.4){ give('bread',1); extra=' and <b>Bread</b>'; }
+    else if(o.t==='ghost'&&Math.random()<.3){ give('crystal',1); extra=' and a <b>Glow Crystal</b>'; }
     toast(`${o.T.name} defeated! <b>+${o.T.gold} gold</b>${extra}`,1900);
     drawWhud(); drawQBadge();
   }
@@ -2239,13 +2425,14 @@ function actionAvailable(L){
 const ACTIONS = {
   examine(){toast('The fountain water is cold and clear. A silver coin glints below.',2200); give('gold',2);},
   mayor(){
-    if(S.quest===0){ S.quest=1;
-      openDialog('The Mayor','The Sunwell has gone dark and the valley is dying. Bring me <b>Iron Ore</b> from the mine, <b>Sunstone</b> from Ashpeak, and a <b>Chronicle Page</b> from the old library. Then activate the Portal Ruin — only that will rekindle it.');
+    if(S.quest===0){ S.quest=1; S.gold+=15;
+      openDialog('The Mayor','Thank the light, a hero at last. The <b>Sunwell</b> has gone dark and the valley is dying.<br><br>The old rite needs three things: <b>Iron Ore</b> from the Iron Quarry to the east, <b>Sunstone</b> from Ashpeak — guarded by a <b>Minotaur</b> — to the south-east, and a <b>Chronicle Page</b> from the Ancient Ruins to the north.<br><br>Bring them to the <b>Portal</b> in the ruins and activate it. Here — <b>15 gold</b> for supplies. Follow the gold marker on your map. Go, and hurry!');
     } else if(S.quest<3 && !allGathered()){
-      openDialog('The Mayor','Have you the Iron, the Sunstone and the Chronicle Page? Not yet — hurry, the valley fades.');
+      const miss=[['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!has(x[0])).map(x=>x[1]);
+      openDialog('The Mayor','Still gathering? You yet need: <b>'+miss.join(', ')+'</b>. The valley fades — hurry.');
     } else if(S.quest<3){
-      openDialog('The Mayor','You have everything! Go to the <b>Portal Ruin</b> beyond the mountains and activate it. Rekindle the Sunwell!');
-    } else { openDialog('The Mayor','You saved us all. Valegends will remember your name.'); }
+      openDialog('The Mayor','You have all three! Go now to the <b>Portal</b> in the Ancient Ruins to the north and activate it. Rekindle the Sunwell and save us all!');
+    } else { openDialog('The Mayor','You saved us all, hero. Valegends will sing your name for a thousand years.'); }
   },
   rest(){ let heal=45; if(S.hero.id==='paladin')heal=S.maxhp;
     S.hp=Math.min(S.maxhp,S.hp+heal); S.sta=S.maxsta;
@@ -2294,23 +2481,16 @@ const ACTIONS = {
   chronicle(){ if(!has('page')){ give('page',1);
       toast('You copy a <b>Chronicle Page</b> — the rite to wake the Sunwell.',2400); }
     else toast('The shelves hold a thousand tomes, all long dead languages.',1900); render(); },
-  portal(){ const miss=[['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!has(x[0])).map(x=>x[1]);
+  portal(){ if(S.quest<1){ openDialog('Portal Ruin','A dormant portal hums with old power. The Mayor may know its purpose — seek him first.'); return; }
+    const miss=[['iron','Iron Ore'],['sulfur','Sunstone'],['page','Chronicle Page']].filter(x=>!has(x[0])).map(x=>x[1]);
     if(miss.length){ openDialog('Portal Ruin','The portal is dormant. You still need: '+miss.join(', ')+'.'); return; }
-    take('iron',1); take('sulfur',1); take('page',1); S.quest=3; win(); },
+    take('iron',1); take('sulfur',1); take('page',1); S.quest=3; victory(); },
 };
 function doAction(){
   if(S.dead) return; const L=WORLD[S.loc];
   if(!actionAvailable(L)) return;
   (ACTIONS[L.act]||(()=>{}))();
   drawQuest();
-}
-
-function win(){
-  render();
-  openInfo(`<h1>The Sunwell Rekindled</h1>
-    <div class="sub">${S.hero.name} channels Iron, Sunstone and the ancient rite into the portal.
-    Light pours back into the valley of Valegends.</div>
-    <div class="btnbar"><button class="big" onclick="location.reload()">Play Again</button></div>`);
 }
 
 /* =====================================================================
