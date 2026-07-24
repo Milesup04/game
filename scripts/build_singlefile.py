@@ -13,7 +13,7 @@ SRC  = os.path.join(ROOT, 'valegends.html')
 OUT  = os.path.join(ROOT, 'ValegendsGame.html')
 
 FOLDERS = ['assets/scenes', 'assets/sprites', 'assets/npcs',
-           'assets/enemies', 'assets/heroes', 'assets/structures']
+           'assets/enemies', 'assets/heroes', 'assets/structures', 'assets/tiles']
 MIME = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 
 def main():
