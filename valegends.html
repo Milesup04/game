@@ -1528,6 +1528,9 @@ function groundSVG(){
       <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#6a9d4d"/><stop offset="1" stop-color="#4f7b3c"/></linearGradient>
       <pattern id="blade" width="4" height="4" patternUnits="userSpaceOnUse">${blades}</pattern>
+      <pattern id="stonep" width="42" height="42" patternUnits="userSpaceOnUse"><image href="${A('assets/tiles/stone.png')}" width="42" height="42"/></pattern>
+      <clipPath id="cpRuins"><ellipse cx="455" cy="88" rx="120" ry="90"/></clipPath>
+      <clipPath id="cpQuarry"><ellipse cx="495" cy="255" rx="80" ry="90"/></clipPath>
       <radialGradient id="ash"><stop offset="0" stop-color="#4a3230"/><stop offset="1" stop-color="#4a323000"/></radialGradient>
       <radialGradient id="sto"><stop offset="0" stop-color="#8f9078"/><stop offset="1" stop-color="#8f907800"/></radialGradient>
       <radialGradient id="san"><stop offset="0" stop-color="#d8c48a"/><stop offset="1" stop-color="#d8c48a00"/></radialGradient>
@@ -1538,7 +1541,9 @@ function groundSVG(){
     </defs>
     <rect width="${W}" height="${H}" fill="url(#gr)" opacity=".18"/>
     ${patch(275,70,80,60,'url(#sto)',.6)}       <!-- cemetery -->
-    ${patch(455,88,120,90,'url(#sto)',.75)}     <!-- ruins -->
+    ${patch(455,88,120,90,'url(#sto)',.5)}
+    <g clip-path="url(#cpRuins)"><rect x="335" y="0" width="240" height="180" fill="url(#stonep)" opacity=".9"/></g>
+    <g clip-path="url(#cpQuarry)"><rect x="415" y="165" width="160" height="180" fill="url(#stonep)" opacity=".9"/></g>
     ${patch(630,90,90,95,'url(#san)',.85)}      <!-- desert -->
     ${patch(45,235,60,90,'url(#glo)',.85)}      <!-- grotto -->
     ${patch(495,255,80,90,'#7a6a52',.55)}       <!-- quarry -->
